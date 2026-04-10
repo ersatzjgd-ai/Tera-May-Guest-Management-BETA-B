@@ -45,7 +45,7 @@ def ddp_dialog(guest_data):
         
     st.divider()
     
-    # --- EDIT SECTION (Integrated to avoid Nested Dialog error) ---
+   # --- EDIT SECTION (Integrated to avoid Nested Dialog error) ---
     with st.expander("📝 Edit Profile Details"):
         with st.form(f"edit_form_{guest_data['id']}"):
             e_name = st.text_input("Guest Name", value=guest_data['name'])
@@ -55,20 +55,34 @@ def ddp_dialog(guest_data):
             e_poc = st.text_input("POC Name", value=guest_data['poc'] if pd.notna(guest_data['poc']) else "")
             
             st.write("**Logistics Update**")
+            
+            # Fetch available GREs for the dropdown
+            gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
+            avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
+            
+            current_gre = guest_data['assigned_gre'] if pd.notna(guest_data['assigned_gre']) and str(guest_data['assigned_gre']).strip() not in ["", "None"] else "-- Unassigned --"
+            # Safety check in case the currently assigned GRE was deleted from the database
+            if current_gre not in avail_gres:
+                avail_gres.append(current_gre)
+                
+            e_gre = st.selectbox("Assign GRE", avail_gres, index=avail_gres.index(current_gre))
+            
             e_arr = st.text_input("Arrival (DD/MM/YYYY HH:MM)", value=guest_data['arrival_time'] if pd.notna(guest_data['arrival_time']) else "")
             e_dep = st.text_input("Departure (DD/MM/YYYY HH:MM)", value=guest_data['departure_time'] if pd.notna(guest_data['departure_time']) else "")
             
             if st.form_submit_button("Save Changes"):
+                final_gre = None if e_gre == "-- Unassigned --" else e_gre
+                
                 with conn.session as s:
                     s.execute(text("""
                         UPDATE guests SET 
                         name = :n, category = :cat, speaker_category = :spk, 
                         accompanying_persons = :pax, poc = :poc, arrival_time = :arr, 
-                        departure_time = :dep 
+                        departure_time = :dep, assigned_gre = :gre
                         WHERE id = :id
                     """), {
                         "n": e_name, "cat": e_cat, "spk": e_spk, "pax": e_pax, 
-                        "poc": e_poc, "arr": e_arr, "dep": e_dep, "id": guest_data['id']
+                        "poc": e_poc, "arr": e_arr, "dep": e_dep, "gre": final_gre, "id": guest_data['id']
                     })
                     s.commit()
                 st.success("Information updated!")
