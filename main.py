@@ -219,8 +219,7 @@ def main():
                     * **Optional:** `poc`, `category`, `speaker_category`, `accompanying_persons`
                     """, icon="💡")
                     
-                    f = st.file_uploader("Upload CSV", type="csv")
-                    f = st.file_uploader("Upload CSV", type="csv")
+                    f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
                     if f:
                         data = pd.read_csv(f)
                         
