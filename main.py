@@ -79,7 +79,7 @@ def main():
             st.divider()
             raw_df = conn.query("SELECT * FROM guests", ttl=0)
             
-            # --- DEFENSIVE COLUMN CHECK (Bug Fix) ---
+            # --- DEFENSIVE COLUMN CHECK ---
             expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time']
             for col in expected:
                 if col not in raw_df.columns: raw_df[col] = None 
@@ -131,37 +131,73 @@ def main():
                         for i, (cn, count) in enumerate(counts.items()): cols[i].metric(cn, count)
 
                 st.divider()
+
                 if not disp.empty:
-                    h1, h2, h3, h4, h5 = st.columns([3, 2, 2, 2, 1.5])
-                    h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**POC**"); h4.write("**Arrival**"); h5.write("**Pax**")
+                    # --- BATCH ACTIONS UI ---
+                    with st.expander("🛠️ Batch Actions (Select guests below to apply)", expanded=False):
+                        selected_ids = [row['id'] for _, row in disp.iterrows() if st.session_state.get(f"chk_{row['id']}", False)]
+                        st.markdown(f"**Guests currently selected:** `{len(selected_ids)}`")
+                        
+                        b1, b2, b3 = st.columns(3)
+                        with b1:
+                            gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
+                            avail_gres = ["-- No Change --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- No Change --"]
+                            batch_gre = st.selectbox("Assign GRE", avail_gres)
+                        with b2:
+                            batch_room = st.selectbox("Update Room Status", ["-- No Change --", "Mark Cleaned", "Mark Dirty/Pending"])
+                        with b3:
+                            batch_pickup = st.selectbox("Update Pickup Status", ["-- No Change --", "Mark Sent", "Mark Pending"])
+                            
+                        if st.button("Apply to Selected", type="primary"):
+                            if selected_ids:
+                                with conn.session as s:
+                                    for gid in selected_ids:
+                                        if batch_gre != "-- No Change --":
+                                            s.execute(text("UPDATE guests SET assigned_gre = :g WHERE id = :id"), {"g": batch_gre, "id": gid})
+                                        if batch_room != "-- No Change --":
+                                            r_val = 1 if batch_room == "Mark Cleaned" else 0
+                                            s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": r_val, "id": gid})
+                                        if batch_pickup != "-- No Change --":
+                                            p_val = 1 if batch_pickup == "Mark Sent" else 0
+                                            s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": p_val, "id": gid})
+                                    s.commit()
+                                st.success(f"Successfully updated {len(selected_ids)} guests!")
+                                for gid in selected_ids:
+                                    st.session_state[f"chk_{gid}"] = False
+                                st.rerun()
+                            else:
+                                st.warning("Please check the box next to at least one guest below.")
+
+                    st.divider()
+
+                    # --- SEARCH RESULTS TABLE ---
+                    h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
+                    h0.write("**☑**"); h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**POC**"); h4.write("**Arrival**"); h5.write("**Pax**")
+                    st.divider()
+                    
                     for _, row in disp.iterrows():
-                        r1, r2, r3, r4, r5 = st.columns([3, 2, 2, 2, 1.5])
+                        r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                         
+                        with r0:
+                            st.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
+
                         # --- FLAG WARNING LOGIC ---
-                        # 1. Check if arrival is today
                         is_arriving_today = pd.notna(row['arrival_dt']) and row['arrival_dt'].date() == today
-                        
-                        # 2. Define Triggers
                         room_warning = is_arriving_today and not bool(row['room_cleaned'])
                         gre_warning = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
                         
-                        # 3. Apply Visuals
                         flagged = room_warning or gre_warning
-                        btn_type = "primary" if flagged else "secondary" # "primary" turns the button red/accent colored
+                        btn_type = "primary" if flagged else "secondary" 
                         
-                        if gre_warning:
-                            icon = "🚨" # High Priority
-                        elif room_warning:
-                            icon = "⚠️" # Action Needed
-                        else:
-                            icon = "👤" # All Good
+                        if gre_warning: icon = "🚨" 
+                        elif room_warning: icon = "⚠️" 
+                        else: icon = "👤" 
 
                         with r1:
-                            # The main clickable button with the Guest Name
                             if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
                                 ddp_dialog(row)
                             
-                            # --- EXPLICIT CRITICAL WARNINGS ---
+                            # EXPLICIT WARNING TEXT
                             if gre_warning:
                                 st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
                             elif room_warning:
@@ -171,7 +207,8 @@ def main():
                         r3.write(row['poc'] or "--")
                         r4.write(row['arrival_time'] or "TBD")
                         r5.write(f"+{int(row['accompanying_persons']) if pd.notna(row['accompanying_persons']) else 0}")
-                else: st.warning("No guests found.")
+                else: 
+                    st.warning("No guests found.")
 
             # Bulk Tools
             st.divider()
