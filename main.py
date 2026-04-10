@@ -199,10 +199,11 @@ def main():
                 else: 
                     st.warning("No guests found.")
 
-            # Bulk Tools
+            # --- ADMIN TOOLS (Ensure this is aligned with the 'if/else' above it, NOT inside the table loop) ---
             st.divider()
             with st.expander("🛠️ Admin Tools (Add GRE / Bulk Import)"):
                 t1, t2 = st.tabs(["Add GRE", "CSV Import"])
+                
                 with t1:
                     with st.form("gre_f"):
                         gn, gp = st.text_input("Name"), st.text_input("Phone")
@@ -211,8 +212,8 @@ def main():
                                 s.execute(text("INSERT INTO gres (gre_name, gre_phone) VALUES (:n, :p)"), {"n": gn, "p": gp})
                                 s.commit()
                             st.rerun()
+                            
                 with t2:
-                    # --- CSV FORMATTING GUIDE ---
                     st.info("""
                     📄 **CSV Column Guide:**
                     * **Required:** `name`, `admin_username`
@@ -220,11 +221,8 @@ def main():
                     """, icon="💡")
                     
                     f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
-                    f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
                     if f:
                         data = pd.read_csv(f)
-                        
-                        # Standardize columns
                         data.columns = data.columns.str.lower().str.strip()
                         
                         if st.button("Run Import", type="primary"):
@@ -233,10 +231,8 @@ def main():
                                     g_name = str(r['name']).strip()
                                     a_user = str(r['admin_username']).strip()
                                     
-                                    # Create Admin if doesn't exist
                                     s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": a_user, "p": "password123"})
                                     
-                                    # Safely extract values (convert 'nan' back to empty string)
                                     cat_val = str(r['category']).strip() if 'category' in data.columns and pd.notna(r['category']) else ""
                                     if cat_val.lower() == "nan": cat_val = ""
                                     
@@ -249,18 +245,15 @@ def main():
                                     try: pax_val = int(r['accompanying_persons']) if 'accompanying_persons' in data.columns and pd.notna(r['accompanying_persons']) else 0
                                     except: pax_val = 0
 
-                                    # Check if guest already exists
                                     existing = s.execute(text("SELECT id FROM guests WHERE name = :n AND admin_owner = :u"), {"n": g_name, "u": a_user}).fetchone()
                                     
                                     if existing:
-                                        # IF EXISTS: Update their missing data!
                                         s.execute(text("""
                                             UPDATE guests 
                                             SET category = :cat, speaker_category = :spk, poc = :poc, accompanying_persons = :pax
                                             WHERE id = :id
                                         """), {"cat": cat_val, "spk": spk_val, "poc": poc_val, "pax": pax_val, "id": existing[0]})
                                     else:
-                                        # IF NEW: Insert them
                                         s.execute(text("""
                                             INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons) 
                                             VALUES (:n, :u, :poc, :cat, :spk, :pax)
