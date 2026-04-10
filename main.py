@@ -147,41 +147,51 @@ def main():
                                 st.warning("Please check the box next to at least one guest first.")
 
                     # --- FULL WIDTH SEARCH RESULTS TABLE ---
-                    h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
-                    h0.write("**☑**"); h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**POC**"); h4.write("**Arrival**"); h5.write("**Pax**")
-                    st.divider()
+                    # 1. Header wrapped in a bordered container
+                    with st.container(border=True):
+                        h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
+                        h0.write("**☑**")
+                        h1.write("**Guest Name**")
+                        h2.write("**GRE**")
+                        h3.write("**POC**")
+                        h4.write("**Arrival Time**")
+                        h5.write("**Pax**")
                     
                     for _, row in disp.iterrows():
-                        r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
-                        
-                        with r0:
-                            st.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
-
-                        # --- FLAG WARNING LOGIC ---
-                        is_arriving_today = pd.notna(row['arrival_dt']) and row['arrival_dt'].date() == today
-                        room_warning = is_arriving_today and not bool(row['room_cleaned'])
-                        gre_warning = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
-                        
-                        flagged = room_warning or gre_warning
-                        btn_type = "primary" if flagged else "secondary" 
-                        
-                        if gre_warning: icon = "🚨" 
-                        elif room_warning: icon = "⚠️" 
-                        else: icon = "👤" 
-
-                        with r1:
-                            if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
-                                ddp_dialog(row)
+                        # 2. Every single row gets its own bordered container (Creates clean dividing lines)
+                        with st.container(border=True):
+                            r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                             
-                            if gre_warning:
-                                st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
-                            elif room_warning:
-                                st.caption("⚠️ :orange[Room Not Cleaned]")
+                            with r0:
+                                st.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
+
+                            # --- FLAG WARNING LOGIC ---
+                            is_arriving_today = pd.notna(row['arrival_dt']) and row['arrival_dt'].date() == today
+                            room_warning = is_arriving_today and not bool(row['room_cleaned'])
+                            gre_warning = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
+                            
+                            flagged = room_warning or gre_warning
+                            btn_type = "primary" if flagged else "secondary" 
+                            
+                            if gre_warning: icon = "🚨" 
+                            elif room_warning: icon = "⚠️" 
+                            else: icon = "👤" 
+
+                            with r1:
+                                if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
+                                    ddp_dialog(row)
                                 
-                        r2.write(row['assigned_gre'] if pd.notna(row['assigned_gre']) and str(row['assigned_gre']).strip() not in ["", "-- Unassigned --", "None", "--"] else "❌ Pending")
-                        r3.write(row['poc'] or "--")
-                        r4.write(row['arrival_time'] or "TBD")
-                        r5.write(f"+{int(row['accompanying_persons']) if pd.notna(row['accompanying_persons']) else 0}")
+                                # --- 3. REDUCED WARNING TEXT ---
+                                # Using HTML to make the text smaller (12px) and tuck it directly under the button
+                                if gre_warning:
+                                    st.markdown("<p style='color: #ff4b4b; font-size: 12px; margin-top: -12px; margin-bottom: 0px;'><b>🚨 GRE NOT ASSIGNED</b></p>", unsafe_allow_html=True)
+                                elif room_warning:
+                                    st.markdown("<p style='color: #ff9800; font-size: 12px; margin-top: -12px; margin-bottom: 0px;'><b>⚠️ Room Not Cleaned</b></p>", unsafe_allow_html=True)
+                                    
+                            r2.write(row['assigned_gre'] if pd.notna(row['assigned_gre']) and str(row['assigned_gre']).strip() not in ["", "-- Unassigned --", "None", "--"] else "❌ Pending")
+                            r3.write(row['poc'] or "--")
+                            r4.write(row['arrival_time'] or "TBD")
+                            r5.write(f"+{int(row['accompanying_persons']) if pd.notna(row['accompanying_persons']) else 0}")
                 else: 
                     st.warning("No guests found.")
 
