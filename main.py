@@ -133,44 +133,20 @@ def main():
                 st.divider()
 
                 if not disp.empty:
-                    # --- BATCH ACTIONS UI ---
-                    with st.expander("🛠️ Batch Actions (Select guests below to apply)", expanded=False):
-                        selected_ids = [row['id'] for _, row in disp.iterrows() if st.session_state.get(f"chk_{row['id']}", False)]
-                        st.markdown(f"**Guests currently selected:** `{len(selected_ids)}`")
-                        
-                        b1, b2, b3 = st.columns(3)
-                        with b1:
-                            gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
-                            avail_gres = ["-- No Change --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- No Change --"]
-                            batch_gre = st.selectbox("Assign GRE", avail_gres)
-                        with b2:
-                            batch_room = st.selectbox("Update Room Status", ["-- No Change --", "Mark Cleaned", "Mark Dirty/Pending"])
-                        with b3:
-                            batch_pickup = st.selectbox("Update Pickup Status", ["-- No Change --", "Mark Sent", "Mark Pending"])
-                            
-                        if st.button("Apply to Selected", type="primary"):
-                            if selected_ids:
-                                with conn.session as s:
-                                    for gid in selected_ids:
-                                        if batch_gre != "-- No Change --":
-                                            s.execute(text("UPDATE guests SET assigned_gre = :g WHERE id = :id"), {"g": batch_gre, "id": gid})
-                                        if batch_room != "-- No Change --":
-                                            r_val = 1 if batch_room == "Mark Cleaned" else 0
-                                            s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": r_val, "id": gid})
-                                        if batch_pickup != "-- No Change --":
-                                            p_val = 1 if batch_pickup == "Mark Sent" else 0
-                                            s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": p_val, "id": gid})
-                                    s.commit()
-                                st.success(f"Successfully updated {len(selected_ids)} guests!")
-                                for gid in selected_ids:
-                                    st.session_state[f"chk_{gid}"] = False
-                                st.rerun()
+                    # --- BATCH ACTIONS TRIGGER ---
+                    # Find out who is currently checked
+                    selected_ids = [row['id'] for _, row in disp.iterrows() if st.session_state.get(f"chk_{row['id']}", False)]
+                    
+                    # Place the button neatly on the right side above the table
+                    c1, c2 = st.columns([8, 2])
+                    with c2:
+                        if st.button(f"🛠️ Batch Actions ({len(selected_ids)})", use_container_width=True):
+                            if len(selected_ids) > 0:
+                                batch_actions_dialog(selected_ids)
                             else:
-                                st.warning("Please check the box next to at least one guest below.")
+                                st.warning("Please check the box next to at least one guest first.")
 
-                    st.divider()
-
-                    # --- SEARCH RESULTS TABLE ---
+                    # --- FULL WIDTH SEARCH RESULTS TABLE ---
                     h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                     h0.write("**☑**"); h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**POC**"); h4.write("**Arrival**"); h5.write("**Pax**")
                     st.divider()
@@ -197,7 +173,6 @@ def main():
                             if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
                                 ddp_dialog(row)
                             
-                            # EXPLICIT WARNING TEXT
                             if gre_warning:
                                 st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
                             elif room_warning:
