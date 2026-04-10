@@ -220,30 +220,54 @@ def main():
                     """, icon="💡")
                     
                     f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
+                    f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
                     if f:
                         data = pd.read_csv(f)
                         
-                        # --- BUG FIX: STANDARDIZE CSV COLUMNS ---
-                        # Converts all headers to lowercase and removes accidental spaces 
-                        # so "Category " or "CATEGORY" all become "category" safely.
+                        # Standardize columns
                         data.columns = data.columns.str.lower().str.strip()
                         
                         if st.button("Run Import", type="primary"):
                             with conn.session as s:
                                 for _, r in data.iterrows():
-                                    s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": str(r['admin_username']), "p": "password123"})
+                                    g_name = str(r['name']).strip()
+                                    a_user = str(r['admin_username']).strip()
                                     
-                                    # Safe extraction of optional columns
+                                    # Create Admin if doesn't exist
+                                    s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": a_user, "p": "password123"})
+                                    
+                                    # Safely extract values (convert 'nan' back to empty string)
                                     cat_val = str(r['category']).strip() if 'category' in data.columns and pd.notna(r['category']) else ""
+                                    if cat_val.lower() == "nan": cat_val = ""
+                                    
                                     spk_val = str(r['speaker_category']).strip() if 'speaker_category' in data.columns and pd.notna(r['speaker_category']) else "Non-Speaker"
+                                    if spk_val.lower() == "nan": spk_val = "Non-Speaker"
+                                    
                                     poc_val = str(r['poc']).strip() if 'poc' in data.columns and pd.notna(r['poc']) else ""
-                                    pax_val = int(r['accompanying_persons']) if 'accompanying_persons' in data.columns and pd.notna(r['accompanying_persons']) else 0
+                                    if poc_val.lower() == "nan": poc_val = ""
+                                    
+                                    try: pax_val = int(r['accompanying_persons']) if 'accompanying_persons' in data.columns and pd.notna(r['accompanying_persons']) else 0
+                                    except: pax_val = 0
 
-                                    s.execute(text("""INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons) 
-                                                      VALUES (:n, :u, :poc, :cat, :spk, :pax)"""), 
-                                              {"n": str(r['name']), "u": str(r['admin_username']), "poc": poc_val, "cat": cat_val, "spk": spk_val, "pax": pax_val})
+                                    # Check if guest already exists
+                                    existing = s.execute(text("SELECT id FROM guests WHERE name = :n AND admin_owner = :u"), {"n": g_name, "u": a_user}).fetchone()
+                                    
+                                    if existing:
+                                        # IF EXISTS: Update their missing data!
+                                        s.execute(text("""
+                                            UPDATE guests 
+                                            SET category = :cat, speaker_category = :spk, poc = :poc, accompanying_persons = :pax
+                                            WHERE id = :id
+                                        """), {"cat": cat_val, "spk": spk_val, "poc": poc_val, "pax": pax_val, "id": existing[0]})
+                                    else:
+                                        # IF NEW: Insert them
+                                        s.execute(text("""
+                                            INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons) 
+                                            VALUES (:n, :u, :poc, :cat, :spk, :pax)
+                                        """), {"n": g_name, "u": a_user, "poc": poc_val, "cat": cat_val, "spk": spk_val, "pax": pax_val})
+                                        
                                 s.commit()
-                            st.success("Import successful!")
+                            st.success("CSV Processed! Existing guests updated and new guests added.")
                             st.rerun()
 
 if __name__ == "__main__":
