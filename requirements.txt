@@ -1,0 +1,5 @@
+streamlit
+pandas
+SQLAlchemy
+extra-streamlit-components
+psycopg2-binary
