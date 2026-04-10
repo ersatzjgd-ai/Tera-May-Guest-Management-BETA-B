@@ -4,7 +4,7 @@ from sqlalchemy import text
 import extra_streamlit_components as stx
 import datetime
 from database import conn, init_db
-from ui_components import ddp_dialog
+from ui_components import ddp_dialog, batch_actions_dialog
 
 def main():
     st.set_page_config(page_title="Dignitary Management System", layout="wide")
