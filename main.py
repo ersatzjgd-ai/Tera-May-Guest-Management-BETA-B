@@ -157,13 +157,20 @@ def main():
                             icon = "👤" # All Good
 
                         with r1:
+                            # The main clickable button with the Guest Name
                             if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
                                 ddp_dialog(row)
+                            
+                            # --- EXPLICIT CRITICAL WARNINGS ---
+                            if gre_warning:
+                                st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
+                            elif room_warning:
+                                st.caption("⚠️ :orange[Room Not Cleaned]")
                                 
-                        r2.write(row['assigned_gre'] or "--")
+                        r2.write(row['assigned_gre'] if pd.notna(row['assigned_gre']) and str(row['assigned_gre']).strip() not in ["", "-- Unassigned --", "None", "--"] else "❌ Pending")
                         r3.write(row['poc'] or "--")
                         r4.write(row['arrival_time'] or "TBD")
-                        r5.write(f"+{int(row['accompanying_persons'] if pd.notna(row['accompanying_persons']) else 0)}")
+                        r5.write(f"+{int(row['accompanying_persons']) if pd.notna(row['accompanying_persons']) else 0}")
                 else: st.warning("No guests found.")
 
             # Bulk Tools
