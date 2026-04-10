@@ -90,7 +90,11 @@ def main():
             f1, f2, f3 = st.columns([2, 2, 2])
             with f1: s_name = st.text_input("👤 Guest Name", placeholder="Search...")
             with f2:
-                available = [c for c in raw_df['category'].unique() if pd.notna(c)] if not raw_df.empty else []
+                # Safely extract, clean, and sort categories (ignoring blanks and 'nan')
+                if not raw_df.empty and 'category' in raw_df.columns:
+                    available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]])))
+                else:
+                    available = []
                 s_cats = st.multiselect("🏷️ Categories", available)
             with f3:
                 today = datetime.date.today()
@@ -216,15 +220,29 @@ def main():
                     """, icon="💡")
                     
                     f = st.file_uploader("Upload CSV", type="csv")
+                    f = st.file_uploader("Upload CSV", type="csv")
                     if f:
                         data = pd.read_csv(f)
+                        
+                        # --- BUG FIX: STANDARDIZE CSV COLUMNS ---
+                        # Converts all headers to lowercase and removes accidental spaces 
+                        # so "Category " or "CATEGORY" all become "category" safely.
+                        data.columns = data.columns.str.lower().str.strip()
+                        
                         if st.button("Run Import", type="primary"):
                             with conn.session as s:
                                 for _, r in data.iterrows():
                                     s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": str(r['admin_username']), "p": "password123"})
+                                    
+                                    # Safe extraction of optional columns
+                                    cat_val = str(r['category']).strip() if 'category' in data.columns and pd.notna(r['category']) else ""
+                                    spk_val = str(r['speaker_category']).strip() if 'speaker_category' in data.columns and pd.notna(r['speaker_category']) else "Non-Speaker"
+                                    poc_val = str(r['poc']).strip() if 'poc' in data.columns and pd.notna(r['poc']) else ""
+                                    pax_val = int(r['accompanying_persons']) if 'accompanying_persons' in data.columns and pd.notna(r['accompanying_persons']) else 0
+
                                     s.execute(text("""INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons) 
                                                       VALUES (:n, :u, :poc, :cat, :spk, :pax)"""), 
-                                              {"n": str(r['name']), "u": str(r['admin_username']), "poc": str(r.get('poc', 'TBD')), "cat": str(r.get('category', 'TBD')), "spk": str(r.get('speaker_category', 'Non-Speaker')), "pax": int(r.get('accompanying_persons', 0))})
+                                              {"n": str(r['name']), "u": str(r['admin_username']), "poc": poc_val, "cat": cat_val, "spk": spk_val, "pax": pax_val})
                                 s.commit()
                             st.success("Import successful!")
                             st.rerun()
