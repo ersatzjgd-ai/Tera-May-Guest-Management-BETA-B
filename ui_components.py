@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
+import datetime
 from database import conn
 
 @st.dialog("DDP - Dignitary Details Page", width="large")
@@ -26,7 +27,6 @@ def ddp_dialog(guest_data):
     
     with info_c3:
         st.markdown("### 🛎️ Ground Status")
-        # Quick Status Toggles
         room_val = bool(guest_data['room_cleaned'])
         new_room = st.toggle("Room Cleaned", value=room_val, key=f"ddp_rm_{guest_data['id']}")
         if new_room != room_val:
@@ -45,33 +45,62 @@ def ddp_dialog(guest_data):
         
     st.divider()
     
-   # --- EDIT SECTION (Integrated to avoid Nested Dialog error) ---
+    # --- EDIT SECTION ---
     with st.expander("📝 Edit Profile Details"):
         with st.form(f"edit_form_{guest_data['id']}"):
             e_name = st.text_input("Guest Name", value=guest_data['name'])
             e_cat = st.text_input("Category", value=guest_data['category'] if pd.notna(guest_data['category']) else "")
-            e_spk = st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if guest_data['speaker_category'] == "Speaker" else 1)
+            
+            # Safe default for Speaker Status
+            current_spk = guest_data['speaker_category'] if pd.notna(guest_data['speaker_category']) else "Non-Speaker"
+            e_spk = st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if current_spk == "Speaker" else 1)
+            
             e_pax = st.number_input("Accompanying Persons", min_value=0, value=pax_val)
             e_poc = st.text_input("POC Name", value=guest_data['poc'] if pd.notna(guest_data['poc']) else "")
             
-            st.write("**Logistics Update**")
-            
-            # Fetch available GREs for the dropdown
+            # Fetch available GREs
             gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
             avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
             
             current_gre = guest_data['assigned_gre'] if pd.notna(guest_data['assigned_gre']) and str(guest_data['assigned_gre']).strip() not in ["", "None"] else "-- Unassigned --"
-            # Safety check in case the currently assigned GRE was deleted from the database
             if current_gre not in avail_gres:
                 avail_gres.append(current_gre)
                 
             e_gre = st.selectbox("Assign GRE", avail_gres, index=avail_gres.index(current_gre))
             
-            e_arr = st.text_input("Arrival (DD/MM/YYYY HH:MM)", value=guest_data['arrival_time'] if pd.notna(guest_data['arrival_time']) else "")
-            e_dep = st.text_input("Departure (DD/MM/YYYY HH:MM)", value=guest_data['departure_time'] if pd.notna(guest_data['departure_time']) else "")
+            st.divider()
+            st.write("**✈️ Logistics Update**")
+            
+            # --- DATE PARSING LOGIC FOR CALENDARS ---
+            def parse_dt(dt_str):
+                if not dt_str or pd.isna(dt_str) or str(dt_str).strip() == "":
+                    return datetime.date.today(), datetime.time(12, 0)
+                try:
+                    dt_obj = datetime.datetime.strptime(str(dt_str).strip(), "%d/%m/%Y %H:%M")
+                    return dt_obj.date(), dt_obj.time()
+                except:
+                    return datetime.date.today(), datetime.time(12, 0)
+
+            arr_d, arr_t = parse_dt(guest_data['arrival_time'])
+            dep_d, dep_t = parse_dt(guest_data['departure_time'])
+
+            # Render Calendar and Time Inputs side-by-side
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Arrival**")
+                new_arr_d = st.date_input("Arrival Date (DD/MM)", value=arr_d, format="DD/MM/YYYY")
+                new_arr_t = st.time_input("Arrival Time", value=arr_t)
+            with c2:
+                st.markdown("**Departure**")
+                new_dep_d = st.date_input("Departure Date (DD/MM)", value=dep_d, format="DD/MM/YYYY")
+                new_dep_t = st.time_input("Departure Time", value=dep_t)
             
             if st.form_submit_button("Save Changes"):
                 final_gre = None if e_gre == "-- Unassigned --" else e_gre
+                
+                # Format the dates back to DD/MM/YYYY HH:MM for the database
+                final_arr = f"{new_arr_d.strftime('%d/%m/%Y')} {new_arr_t.strftime('%H:%M')}"
+                final_dep = f"{new_dep_d.strftime('%d/%m/%Y')} {new_dep_t.strftime('%H:%M')}"
                 
                 with conn.session as s:
                     s.execute(text("""
@@ -82,7 +111,7 @@ def ddp_dialog(guest_data):
                         WHERE id = :id
                     """), {
                         "n": e_name, "cat": e_cat, "spk": e_spk, "pax": e_pax, 
-                        "poc": e_poc, "arr": e_arr, "dep": e_dep, "gre": final_gre, "id": guest_data['id']
+                        "poc": e_poc, "arr": final_arr, "dep": final_dep, "gre": final_gre, "id": int(guest_data['id'])
                     })
                     s.commit()
                 st.success("Information updated!")
@@ -114,7 +143,6 @@ def batch_actions_dialog(selected_ids):
             s.commit()
         st.success(f"Updated {len(selected_ids)} guests!")
         
-        # Un-check the boxes after successful update
         for gid in selected_ids:
             st.session_state[f"chk_{gid}"] = False
         st.rerun()
