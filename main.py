@@ -208,10 +208,17 @@ def main():
                                 s.commit()
                             st.rerun()
                 with t2:
+                    # --- CSV FORMATTING GUIDE ---
+                    st.info("""
+                    📄 **CSV Column Guide:**
+                    * **Required:** `name`, `admin_username`
+                    * **Optional:** `poc`, `category`, `speaker_category`, `accompanying_persons`
+                    """, icon="💡")
+                    
                     f = st.file_uploader("Upload CSV", type="csv")
                     if f:
                         data = pd.read_csv(f)
-                        if st.button("Run Import"):
+                        if st.button("Run Import", type="primary"):
                             with conn.session as s:
                                 for _, r in data.iterrows():
                                     s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": str(r['admin_username']), "p": "password123"})
@@ -219,6 +226,7 @@ def main():
                                                       VALUES (:n, :u, :poc, :cat, :spk, :pax)"""), 
                                               {"n": str(r['name']), "u": str(r['admin_username']), "poc": str(r.get('poc', 'TBD')), "cat": str(r.get('category', 'TBD')), "spk": str(r.get('speaker_category', 'Non-Speaker')), "pax": int(r.get('accompanying_persons', 0))})
                                 s.commit()
+                            st.success("Import successful!")
                             st.rerun()
 
 if __name__ == "__main__":
