@@ -73,3 +73,34 @@ def ddp_dialog(guest_data):
                     s.commit()
                 st.success("Information updated!")
                 st.rerun()
+
+# --- BATCH ACTIONS DIALOG ---
+@st.dialog("🛠️ Batch Actions", width="medium")
+def batch_actions_dialog(selected_ids):
+    st.write(f"**Applying changes to {len(selected_ids)} selected guests.**")
+
+    gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
+    avail_gres = ["-- No Change --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- No Change --"]
+    
+    batch_gre = st.selectbox("Assign GRE", avail_gres)
+    batch_room = st.selectbox("Update Room", ["-- No Change --", "Mark Cleaned", "Mark Dirty/Pending"])
+    batch_pickup = st.selectbox("Update Pickup", ["-- No Change --", "Mark Sent", "Mark Pending"])
+
+    if st.button("Apply Changes", type="primary", use_container_width=True):
+        with conn.session as s:
+            for gid in selected_ids:
+                if batch_gre != "-- No Change --":
+                    s.execute(text("UPDATE guests SET assigned_gre = :g WHERE id = :id"), {"g": batch_gre, "id": gid})
+                if batch_room != "-- No Change --":
+                    r_val = 1 if batch_room == "Mark Cleaned" else 0
+                    s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": r_val, "id": gid})
+                if batch_pickup != "-- No Change --":
+                    p_val = 1 if batch_pickup == "Mark Sent" else 0
+                    s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": p_val, "id": gid})
+            s.commit()
+        st.success(f"Updated {len(selected_ids)} guests!")
+        
+        # Un-check the boxes after successful update
+        for gid in selected_ids:
+            st.session_state[f"chk_{gid}"] = False
+        st.rerun()
