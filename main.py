@@ -136,10 +136,34 @@ def main():
                     h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**POC**"); h4.write("**Arrival**"); h5.write("**Pax**")
                     for _, row in disp.iterrows():
                         r1, r2, r3, r4, r5 = st.columns([3, 2, 2, 2, 1.5])
+                        
+                        # --- FLAG WARNING LOGIC ---
+                        # 1. Check if arrival is today
+                        is_arriving_today = pd.notna(row['arrival_dt']) and row['arrival_dt'].date() == today
+                        
+                        # 2. Define Triggers
+                        room_warning = is_arriving_today and not bool(row['room_cleaned'])
+                        gre_warning = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
+                        
+                        # 3. Apply Visuals
+                        flagged = room_warning or gre_warning
+                        btn_type = "primary" if flagged else "secondary" # "primary" turns the button red/accent colored
+                        
+                        if gre_warning:
+                            icon = "🚨" # High Priority
+                        elif room_warning:
+                            icon = "⚠️" # Action Needed
+                        else:
+                            icon = "👤" # All Good
+
                         with r1:
-                            if st.button(f"👤 {row['name']}", key=f"btn_{row['id']}", use_container_width=True): ddp_dialog(row)
-                        r2.write(row['assigned_gre'] or "--"); r3.write(row['poc'] or "--")
-                        r4.write(row['arrival_time'] or "TBD"); r5.write(f"+{int(row['accompanying_persons'] or 0)}")
+                            if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
+                                ddp_dialog(row)
+                                
+                        r2.write(row['assigned_gre'] or "--")
+                        r3.write(row['poc'] or "--")
+                        r4.write(row['arrival_time'] or "TBD")
+                        r5.write(f"+{int(row['accompanying_persons'] if pd.notna(row['accompanying_persons']) else 0)}")
                 else: st.warning("No guests found.")
 
             # Bulk Tools
