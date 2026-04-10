@@ -144,7 +144,7 @@ def main():
                     # Place the button neatly on the right side above the table
                     c1, c2 = st.columns([8, 2])
                     with c2:
-                        if st.button(f"🛠️ Batch Actions ({len(selected_ids)})", use_container_width=True):
+                        if st.button(f"🛠️ Change Details ({len(selected_ids)})", use_container_width=True):
                             if len(selected_ids) > 0:
                                 batch_actions_dialog(selected_ids)
                             else:
