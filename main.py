@@ -27,7 +27,7 @@ def main():
             else: st.info("Guest not found.")
 
     # --- 2. STAFF PORTAL (GRE) ---
-    elif mode == " GRE Portal":
+    elif mode == "Staff Portal (GRE)":
         st.title("🛎️ Staff Portal (GRE)")
         gre_name = st.text_input("Enter your GRE Name to access")
         if st.button("Access Portal"):
@@ -80,7 +80,7 @@ def main():
             raw_df = conn.query("SELECT * FROM guests", ttl=0)
             
             # --- DEFENSIVE COLUMN CHECK ---
-            expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time']
+            expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time', 'housing']
             for col in expected:
                 if col not in raw_df.columns: raw_df[col] = None 
             if not raw_df.empty:
@@ -90,17 +90,12 @@ def main():
             f1, f2, f3 = st.columns([2, 2, 2])
             with f1: s_name = st.text_input("👤 Guest Name", placeholder="Search...")
             with f2:
-                # Safely extract, clean, and sort categories (ignoring blanks and 'nan')
-                if not raw_df.empty and 'category' in raw_df.columns:
-                    available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]])))
-                else:
-                    available = []
+                available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]]))) if not raw_df.empty and 'category' in raw_df.columns else []
                 s_cats = st.multiselect("🏷️ Categories", available)
             with f3:
                 today = datetime.date.today()
                 d_range = st.date_input("📅 Date Range", value=(today, today), format="DD/MM/YYYY")
 
-            # Filtering logic
             filtered_df = raw_df.copy()
             if not filtered_df.empty:
                 if s_name: filtered_df = filtered_df[filtered_df['name'].str.contains(s_name, case=False, na=False)]
@@ -143,26 +138,13 @@ def main():
                         is_today = pd.notna(dt) and dt.date() == today
                         room_w = is_today and not bool(row['room_cleaned'])
                         gre_w = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
-                        
-                        # Priority Scoring: GRE Warning (2) > Room Warning (1) > No Warning (0)
                         w_score = 2 if gre_w else (1 if room_w else 0)
-                        
-                        # Normalize to midnight for day-level grouping
                         d_only = pd.Timestamp(dt.date()) if pd.notna(dt) else pd.NaT
-                        
                         return pd.Series([gre_w, room_w, w_score, d_only], index=['gre_warning', 'room_warning', 'warning_score', 'sort_date'])
 
-                    # Apply calculations to the dataframe
                     disp[['gre_warning', 'room_warning', 'warning_score', 'sort_date']] = disp.apply(eval_warnings, axis=1)
-                    
-                    # Sort the dataframe firmly based on the priority rules
-                    disp = disp.sort_values(
-                        by=['sort_date', 'warning_score', 'arrival_dt'],
-                        ascending=[True, False, True], # Ascending for dates, Descending for Warning Score
-                        na_position='last'
-                    )
+                    disp = disp.sort_values(by=['sort_date', 'warning_score', 'arrival_dt'], ascending=[True, False, True], na_position='last')
 
-                    # --- BATCH ACTIONS TRIGGER ---
                     selected_ids = [row['id'] for _, row in disp.iterrows() if st.session_state.get(f"chk_{row['id']}", False)]
                     
                     c1, c2 = st.columns([8, 2])
@@ -173,7 +155,6 @@ def main():
                             else:
                                 st.warning("Please check the box next to at least one guest first.")
 
-                    # --- FULL WIDTH SEARCH RESULTS TABLE ---
                     with st.container(border=True):
                         h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                         h0.write("**☑**")
@@ -190,7 +171,6 @@ def main():
                             with r0:
                                 st.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
 
-                            # --- FLAG WARNING LOGIC (Using pre-calculated values) ---
                             room_warning = row['room_warning']
                             gre_warning = row['gre_warning']
                             
@@ -217,7 +197,7 @@ def main():
                 else: 
                     st.warning("No guests found.")
 
-            # --- ADMIN TOOLS (Ensure this is aligned with the 'if/else' above it, NOT inside the table loop) ---
+            # --- ADMIN TOOLS ---
             st.divider()
             with st.expander("🛠️ Admin Tools (Add GRE / Bulk Import)"):
                 t1, t2 = st.tabs(["Add GRE", "CSV Import"])
@@ -235,7 +215,7 @@ def main():
                     st.info("""
                     📄 **CSV Column Guide:**
                     * **Required:** `name`, `admin_username`
-                    * **Optional:** `poc`, `category`, `speaker_category`, `accompanying_persons`
+                    * **Optional:** `poc`, `category`, `speaker_category`, `accompanying_persons`, `housing`
                     """, icon="💡")
                     
                     f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
@@ -260,6 +240,9 @@ def main():
                                     poc_val = str(r['poc']).strip() if 'poc' in data.columns and pd.notna(r['poc']) else ""
                                     if poc_val.lower() == "nan": poc_val = ""
                                     
+                                    hou_val = str(r['housing']).strip() if 'housing' in data.columns and pd.notna(r['housing']) else "TBD"
+                                    if hou_val.lower() == "nan" or hou_val == "": hou_val = "TBD"
+                                    
                                     try: pax_val = int(r['accompanying_persons']) if 'accompanying_persons' in data.columns and pd.notna(r['accompanying_persons']) else 0
                                     except: pax_val = 0
 
@@ -268,14 +251,14 @@ def main():
                                     if existing:
                                         s.execute(text("""
                                             UPDATE guests 
-                                            SET category = :cat, speaker_category = :spk, poc = :poc, accompanying_persons = :pax
+                                            SET category = :cat, speaker_category = :spk, poc = :poc, accompanying_persons = :pax, housing = :hou
                                             WHERE id = :id
-                                        """), {"cat": cat_val, "spk": spk_val, "poc": poc_val, "pax": pax_val, "id": existing[0]})
+                                        """), {"cat": cat_val, "spk": spk_val, "poc": poc_val, "pax": pax_val, "hou": hou_val, "id": existing[0]})
                                     else:
                                         s.execute(text("""
-                                            INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons) 
-                                            VALUES (:n, :u, :poc, :cat, :spk, :pax)
-                                        """), {"n": g_name, "u": a_user, "poc": poc_val, "cat": cat_val, "spk": spk_val, "pax": pax_val})
+                                            INSERT INTO guests (name, admin_owner, poc, category, speaker_category, accompanying_persons, housing) 
+                                            VALUES (:n, :u, :poc, :cat, :spk, :pax, :hou)
+                                        """), {"n": g_name, "u": a_user, "poc": poc_val, "cat": cat_val, "spk": spk_val, "pax": pax_val, "hou": hou_val})
                                         
                                 s.commit()
                             st.success("CSV Processed! Existing guests updated and new guests added.")
