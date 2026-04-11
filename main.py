@@ -37,7 +37,12 @@ def search_results_fragment():
 
     filtered_df = raw_df.copy()
     if not filtered_df.empty:
-        if s_name: filtered_df = filtered_df[filtered_df['name'].str.contains(s_name, case=False, na=False)]
+        if s_name:
+        # Search BOTH the 'name' column and the 'poc' column using the "|" (OR) operator
+        filtered_df = filtered_df[
+            filtered_df['name'].str.contains(s_name, case=False, na=False) |
+            filtered_df['poc'].str.contains(s_name, case=False, na=False)
+        ]
         if s_cats: filtered_df = filtered_df[filtered_df['category'].isin(s_cats)]
         if isinstance(d_range, tuple) and len(d_range) == 2:
             def to_dummy(dt):
