@@ -26,8 +26,14 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
 
     st.title("🔍 Comprehensive Guest Search")
-    f1, f2, f3 = st.columns([2, 2, 2])
-    with f1: s_name = st.text_input("👤 Search Guest or POC", placeholder="Type name...", key="s_name_input")
+    
+    # Expand to 4 columns to make room for the new search box
+    f1, f1a, f2, f3 = st.columns([2, 2, 2, 2]) 
+    
+    with f1: s_name = st.text_input("👤 Guest Name", placeholder="Search guest...", key="s_name_input")
+    with f1a: s_poc = st.text_input("📞 POC Name", placeholder="Search POC...", key="s_poc_input")
+    
+    # (Keep your existing f2 and f3 code exactly as it is below this)
     with f2:
         available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]]))) if not raw_df.empty else []
         s_cats = st.multiselect("🏷️ Categories", available, key="s_cat_select")
@@ -37,12 +43,13 @@ def search_results_fragment():
 
     filtered_df = raw_df.copy()
     if not filtered_df.empty:
+        # 1. Strictly filter by Guest Name if typed
         if s_name:
-        # Search BOTH the 'name' column and the 'poc' column using the "|" (OR) operator
-            filtered_df = filtered_df[
-              filtered_df['name'].str.contains(s_name, case=False, na=False) |
-            filtered_df['poc'].str.contains(s_name, case=False, na=False)
-             ]
+            filtered_df = filtered_df[filtered_df['name'].str.contains(s_name, case=False, na=False)]
+        
+        # 2. Strictly filter by POC if typed
+        if s_poc:
+            filtered_df = filtered_df[filtered_df['poc'].str.contains(s_poc, case=False, na=False)]
         if s_cats: filtered_df = filtered_df[filtered_df['category'].isin(s_cats)]
         if isinstance(d_range, tuple) and len(d_range) == 2:
             def to_dummy(dt):
