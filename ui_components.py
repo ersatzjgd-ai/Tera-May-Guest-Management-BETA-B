@@ -6,13 +6,13 @@ import urllib.parse
 import re
 from database import conn
 
-# --- 1. GLOBAL SILENT SAVE CALLBACKS (Moved to top to prevent blank screens) ---
+# --- 1. GLOBAL SILENT SAVE CALLBACKS ---
+# BUG FIX: Removed st.toast() as drawing UI elements inside dialog callbacks causes blank screen crashes.
 def db_update(field, widget_key, gid):
     val = st.session_state[widget_key]
     with conn.session as s:
         s.execute(text(f"UPDATE guests SET {field} = :v WHERE id = :id"), {"v": val, "id": gid})
         s.commit()
-    st.toast(f"✅ Saved!", icon="💾")
 
 def db_update_datetime(field, date_key, time_key, gid):
     d_val = st.session_state[date_key]
@@ -21,7 +21,6 @@ def db_update_datetime(field, date_key, time_key, gid):
     with conn.session as s:
         s.execute(text(f"UPDATE guests SET {field} = :v WHERE id = :id"), {"v": final_dt, "id": gid})
         s.commit()
-    st.toast(f"✅ Time Saved!", icon="⏱️")
 
 def update_gre_cb(widget_key, gid):
     val = st.session_state[widget_key]
@@ -29,25 +28,21 @@ def update_gre_cb(widget_key, gid):
     with conn.session as s:
         s.execute(text("UPDATE guests SET assigned_gre = :v WHERE id = :id"), {"v": v, "id": gid})
         s.commit()
-    st.toast("✅ GRE Assigned!", icon="🤝")
 
 def toggle_room_cb(k, gid):
     with conn.session as s:
         s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": int(st.session_state[k]), "id": gid})
         s.commit()
-    st.toast("✅ Room status saved!", icon="🧹")
     
 def toggle_pk_cb(k, gid):
     with conn.session as s:
         s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": int(st.session_state[k]), "id": gid})
         s.commit()
-    st.toast("✅ Pickup status saved!", icon="🚗")
 
 def toggle_ashram_cb(k, gid):
     with conn.session as s:
         s.execute(text("UPDATE guests SET ashram_tour = :a WHERE id = :id"), {"a": int(st.session_state[k]), "id": gid})
         s.commit()
-    st.toast("✅ Ashram tour saved!", icon="🛕")
 
 
 def parse_dt(dt_str):
@@ -65,7 +60,7 @@ def parse_dt(dt_str):
 def ddp_dialog(guest_data_input):
     gid = guest_data_input['id']
     
-    # --- STABILITY FIX: Always fetch the freshest data to prevent update loops ---
+    # Stability fix: Always fetch the freshest data to prevent update loops
     try:
         fresh_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": gid}, ttl=0)
         if not fresh_df.empty:
