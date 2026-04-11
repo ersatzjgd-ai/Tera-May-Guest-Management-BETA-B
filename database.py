@@ -9,6 +9,8 @@ def init_db():
     with conn.session as s:
         s.execute(text('CREATE TABLE IF NOT EXISTS admins (username TEXT PRIMARY KEY, password TEXT);'))
         s.execute(text('CREATE TABLE IF NOT EXISTS gres (gre_id SERIAL PRIMARY KEY, gre_name TEXT, gre_phone TEXT);'))
+        # Add the new POCs table here:
+        s.execute(text('CREATE TABLE IF NOT EXISTS pocs (poc_id SERIAL PRIMARY KEY, poc_name TEXT UNIQUE, poc_phone TEXT);'))
         s.execute(text('''
             CREATE TABLE IF NOT EXISTS guests (
                 id SERIAL PRIMARY KEY,
