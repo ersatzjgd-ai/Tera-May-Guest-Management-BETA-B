@@ -108,12 +108,18 @@ def search_results_fragment():
                 else: st.warning("Select guests first.")
 
         with st.container(border=True):
-            h0, h1, h2, h3, h4 = st.columns([0.5, 3, 2, 2, 2])
-            h0.write("**☑**"); h1.write("**Guest**"); h2.write("**GRE**"); h3.write("**Arrival**"); h4.write("**Housing**")
+            # Updated to 6 columns with balanced widths
+            h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 2])
+            h0.write("**☑**")
+            h1.write("**Guest Name**")
+            h2.write("**Date of Arrival**")
+            h3.write("**POC Name**")
+            h4.write("**GRE Name**")
+            h5.write("**# of Guests**")
             
             for _, row in disp.iterrows():
                 with st.container(border=True):
-                    r0, r1, r2, r3, r4 = st.columns([0.5, 3, 2, 2, 2])
+                    r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 2])
                     r0.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
                     
                     gre_w = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --"]
@@ -125,9 +131,11 @@ def search_results_fragment():
                     if gre_w:
                         st.markdown("<p style='color: #ff4b4b; font-size: 11px; margin-top: -15px;'>🚨 UNASSIGNED</p>", unsafe_allow_html=True)
                         
-                    r2.write(row['assigned_gre'] if not gre_w else "❌ Pending")
-                    r3.write(row['arrival_time'] or "TBD")
-                    r4.write(row['housing'] or "TBD")
+                    # Reordered to match the requested left-to-right flow
+                    r2.write(row['arrival_time'] or "TBD")
+                    r3.write(row['poc'] or "TBD")
+                    r4.write(row['assigned_gre'] if not gre_w else "❌ Pending")
+                    r5.write(str(row.get('accompanying_persons', '0')))
     else: 
         st.warning("No guests found.")
 
