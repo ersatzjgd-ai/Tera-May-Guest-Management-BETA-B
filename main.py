@@ -27,7 +27,7 @@ def main():
             else: st.info("Guest not found.")
 
     # --- 2. STAFF PORTAL (GRE) ---
-    elif mode == "Staff Portal (GRE)":
+    elif mode == " GRE Portal":
         st.title("🛎️ Staff Portal (GRE)")
         gre_name = st.text_input("Enter your GRE Name to access")
         if st.button("Access Portal"):
