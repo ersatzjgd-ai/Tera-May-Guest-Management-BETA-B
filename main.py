@@ -183,7 +183,8 @@ def main():
 
                             with r1:
                                 if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
-                                    ddp_dialog(row)
+                                    # BUG FIX: Convert row to a simple dictionary so it survives tab-switching
+                                    ddp_dialog(row.to_dict())
                                 
                                 if gre_warning:
                                     st.markdown("<p style='color: #ff4b4b; font-size: 12px; margin-top: -12px; margin-bottom: 0px;'><b>🚨 GRE NOT ASSIGNED</b></p>", unsafe_allow_html=True)
