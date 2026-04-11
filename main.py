@@ -80,7 +80,7 @@ def main():
             raw_df = conn.query("SELECT * FROM guests", ttl=0)
             
             # --- DEFENSIVE COLUMN CHECK ---
-            expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time', 'housing']
+            expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time', 'housing', 'gift_type', 'ashram_tour']
             for col in expected:
                 if col not in raw_df.columns: raw_df[col] = None 
             if not raw_df.empty:
