@@ -4,6 +4,13 @@ from sqlalchemy import text
 import datetime
 from database import conn
 
+# --- HELPER FUNCTION FOR MISSING DATA HIGHLIGHTS ---
+def missing_alert(val, default_text="TBD"):
+    """Returns the value normally, or a bold RED warning if the data is missing/TBD."""
+    if pd.isna(val) or str(val).strip() in ["", "None", "--", "TBD", "Unassigned", "-- Unassigned --", "nan"]:
+        return f":red[**{default_text}**]"
+    return str(val).strip()
+
 @st.dialog("DDP - Dignitary Details Page", width="large")
 def ddp_dialog(guest_data):
     st.subheader(f"Dignitary: {guest_data['name']}")
@@ -12,18 +19,19 @@ def ddp_dialog(guest_data):
     
     with info_c1:
         st.markdown("### 🪪 Profile")
-        st.write(f"**Category:** {guest_data['category'] if pd.notna(guest_data['category']) else '--'}")
-        st.write(f"**Speaker Status:** {guest_data['speaker_category'] if pd.notna(guest_data['speaker_category']) else '--'}")
-        pax_val = int(guest_data['accompanying_persons']) if pd.notna(guest_data['accompanying_persons']) else 0
+        st.write(f"**Category:** {missing_alert(guest_data.get('category'))}")
+        st.write(f"**Speaker Status:** {missing_alert(guest_data.get('speaker_category'))}")
+        pax_val = int(guest_data['accompanying_persons']) if pd.notna(guest_data.get('accompanying_persons')) else 0
         st.write(f"**Accompanying Pax:** {pax_val}")
-        st.write(f"**POC Name:** {guest_data['poc'] if pd.notna(guest_data['poc']) else '--'}")
+        st.write(f"**POC Name:** {missing_alert(guest_data.get('poc'))}")
 
     with info_c2:
         st.markdown("### ✈️ Logistics")
-        st.write(f"**Arrival:** {guest_data['arrival_time'] if pd.notna(guest_data['arrival_time']) else 'TBD'}")
-        st.write(f"**Departure:** {guest_data['departure_time'] if pd.notna(guest_data['departure_time']) else 'TBD'}")
-        st.write(f"**Admin Owner:** {guest_data['admin_owner']}")
-        st.write(f"**Assigned GRE:** {guest_data['assigned_gre'] if pd.notna(guest_data['assigned_gre']) else 'Unassigned'}")
+        st.write(f"**Housing/Room:** {missing_alert(guest_data.get('housing'))}")
+        st.write(f"**Arrival:** {missing_alert(guest_data.get('arrival_time'))}")
+        st.write(f"**Departure:** {missing_alert(guest_data.get('departure_time'))}")
+        st.write(f"**Admin Owner:** {missing_alert(guest_data.get('admin_owner'))}")
+        st.write(f"**Assigned GRE:** {missing_alert(guest_data.get('assigned_gre'), 'Unassigned')}")
     
     with info_c3:
         st.markdown("### 🛎️ Ground Status")
@@ -51,18 +59,17 @@ def ddp_dialog(guest_data):
             e_name = st.text_input("Guest Name", value=guest_data['name'])
             e_cat = st.text_input("Category", value=guest_data['category'] if pd.notna(guest_data['category']) else "")
             
-            # Safe default for Speaker Status
-            current_spk = guest_data['speaker_category'] if pd.notna(guest_data['speaker_category']) else "Non-Speaker"
+            current_spk = guest_data['speaker_category'] if pd.notna(guest_data.get('speaker_category')) else "Non-Speaker"
             e_spk = st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if current_spk == "Speaker" else 1)
             
             e_pax = st.number_input("Accompanying Persons", min_value=0, value=pax_val)
-            e_poc = st.text_input("POC Name", value=guest_data['poc'] if pd.notna(guest_data['poc']) else "")
+            e_poc = st.text_input("POC Name", value=guest_data['poc'] if pd.notna(guest_data.get('poc')) else "")
             
             # Fetch available GREs
             gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
             avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
             
-            current_gre = guest_data['assigned_gre'] if pd.notna(guest_data['assigned_gre']) and str(guest_data['assigned_gre']).strip() not in ["", "None"] else "-- Unassigned --"
+            current_gre = guest_data['assigned_gre'] if pd.notna(guest_data.get('assigned_gre')) and str(guest_data['assigned_gre']).strip() not in ["", "None"] else "-- Unassigned --"
             if current_gre not in avail_gres:
                 avail_gres.append(current_gre)
                 
@@ -71,9 +78,12 @@ def ddp_dialog(guest_data):
             st.divider()
             st.write("**✈️ Logistics Update**")
             
-            # --- DATE PARSING LOGIC FOR CALENDARS ---
+            # New Housing Input
+            current_hou = guest_data['housing'] if pd.notna(guest_data.get('housing')) and str(guest_data['housing']).strip() != "" else "TBD"
+            e_hou = st.text_input("Housing / Room Allotment", value=current_hou)
+            
             def parse_dt(dt_str):
-                if not dt_str or pd.isna(dt_str) or str(dt_str).strip() == "":
+                if not dt_str or pd.isna(dt_str) or str(dt_str).strip() in ["", "TBD"]:
                     return datetime.date.today(), datetime.time(12, 0)
                 try:
                     dt_obj = datetime.datetime.strptime(str(dt_str).strip(), "%d/%m/%Y %H:%M")
@@ -81,10 +91,9 @@ def ddp_dialog(guest_data):
                 except:
                     return datetime.date.today(), datetime.time(12, 0)
 
-            arr_d, arr_t = parse_dt(guest_data['arrival_time'])
-            dep_d, dep_t = parse_dt(guest_data['departure_time'])
+            arr_d, arr_t = parse_dt(guest_data.get('arrival_time'))
+            dep_d, dep_t = parse_dt(guest_data.get('departure_time'))
 
-            # Render Calendar and Time Inputs side-by-side
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("**Arrival**")
@@ -98,7 +107,6 @@ def ddp_dialog(guest_data):
             if st.form_submit_button("Save Changes"):
                 final_gre = None if e_gre == "-- Unassigned --" else e_gre
                 
-                # Format the dates back to DD/MM/YYYY HH:MM for the database
                 final_arr = f"{new_arr_d.strftime('%d/%m/%Y')} {new_arr_t.strftime('%H:%M')}"
                 final_dep = f"{new_dep_d.strftime('%d/%m/%Y')} {new_dep_t.strftime('%H:%M')}"
                 
@@ -107,11 +115,11 @@ def ddp_dialog(guest_data):
                         UPDATE guests SET 
                         name = :n, category = :cat, speaker_category = :spk, 
                         accompanying_persons = :pax, poc = :poc, arrival_time = :arr, 
-                        departure_time = :dep, assigned_gre = :gre
+                        departure_time = :dep, assigned_gre = :gre, housing = :hou
                         WHERE id = :id
                     """), {
                         "n": e_name, "cat": e_cat, "spk": e_spk, "pax": e_pax, 
-                        "poc": e_poc, "arr": final_arr, "dep": final_dep, "gre": final_gre, "id": int(guest_data['id'])
+                        "poc": e_poc, "arr": final_arr, "dep": final_dep, "gre": final_gre, "hou": e_hou, "id": int(guest_data['id'])
                     })
                     s.commit()
                 st.success("Information updated!")
