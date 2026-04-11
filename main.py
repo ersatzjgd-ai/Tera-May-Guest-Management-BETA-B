@@ -137,21 +137,43 @@ def main():
                 st.divider()
 
                 if not disp.empty:
+                    # --- STABILITY & PRIORITY SORTING LOGIC ---
+                    def eval_warnings(row):
+                        dt = row['arrival_dt']
+                        is_today = pd.notna(dt) and dt.date() == today
+                        room_w = is_today and not bool(row['room_cleaned'])
+                        gre_w = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
+                        
+                        # Priority Scoring: GRE Warning (2) > Room Warning (1) > No Warning (0)
+                        w_score = 2 if gre_w else (1 if room_w else 0)
+                        
+                        # Normalize to midnight for day-level grouping
+                        d_only = pd.Timestamp(dt.date()) if pd.notna(dt) else pd.NaT
+                        
+                        return pd.Series([gre_w, room_w, w_score, d_only], index=['gre_warning', 'room_warning', 'warning_score', 'sort_date'])
+
+                    # Apply calculations to the dataframe
+                    disp[['gre_warning', 'room_warning', 'warning_score', 'sort_date']] = disp.apply(eval_warnings, axis=1)
+                    
+                    # Sort the dataframe firmly based on the priority rules
+                    disp = disp.sort_values(
+                        by=['sort_date', 'warning_score', 'arrival_dt'],
+                        ascending=[True, False, True], # Ascending for dates, Descending for Warning Score
+                        na_position='last'
+                    )
+
                     # --- BATCH ACTIONS TRIGGER ---
-                    # Find out who is currently checked
                     selected_ids = [row['id'] for _, row in disp.iterrows() if st.session_state.get(f"chk_{row['id']}", False)]
                     
-                    # Place the button neatly on the right side above the table
                     c1, c2 = st.columns([8, 2])
                     with c2:
-                        if st.button(f"🛠️ Change Details ({len(selected_ids)})", use_container_width=True):
+                        if st.button(f"🛠️ Batch Actions ({len(selected_ids)})", use_container_width=True):
                             if len(selected_ids) > 0:
                                 batch_actions_dialog(selected_ids)
                             else:
                                 st.warning("Please check the box next to at least one guest first.")
 
                     # --- FULL WIDTH SEARCH RESULTS TABLE ---
-                    # 1. Header wrapped in a bordered container
                     with st.container(border=True):
                         h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                         h0.write("**☑**")
@@ -162,17 +184,15 @@ def main():
                         h5.write("**Pax**")
                     
                     for _, row in disp.iterrows():
-                        # 2. Every single row gets its own bordered container (Creates clean dividing lines)
                         with st.container(border=True):
                             r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 1.5])
                             
                             with r0:
                                 st.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
 
-                            # --- FLAG WARNING LOGIC ---
-                            is_arriving_today = pd.notna(row['arrival_dt']) and row['arrival_dt'].date() == today
-                            room_warning = is_arriving_today and not bool(row['room_cleaned'])
-                            gre_warning = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None", "--"]
+                            # --- FLAG WARNING LOGIC (Using pre-calculated values) ---
+                            room_warning = row['room_warning']
+                            gre_warning = row['gre_warning']
                             
                             flagged = room_warning or gre_warning
                             btn_type = "primary" if flagged else "secondary" 
@@ -185,8 +205,6 @@ def main():
                                 if st.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type=btn_type, use_container_width=True): 
                                     ddp_dialog(row)
                                 
-                                # --- 3. REDUCED WARNING TEXT ---
-                                # Using HTML to make the text smaller (12px) and tuck it directly under the button
                                 if gre_warning:
                                     st.markdown("<p style='color: #ff4b4b; font-size: 12px; margin-top: -12px; margin-bottom: 0px;'><b>🚨 GRE NOT ASSIGNED</b></p>", unsafe_allow_html=True)
                                 elif room_warning:
