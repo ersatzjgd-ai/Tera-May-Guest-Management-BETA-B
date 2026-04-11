@@ -6,7 +6,7 @@ import urllib.parse
 import re
 from database import conn
 
-# --- SILENT DATABASE SAVE CALLBACKS ---
+# --- 1. GLOBAL SILENT SAVE CALLBACKS (Moved to top to prevent blank screens) ---
 def db_update(field, widget_key, gid):
     val = st.session_state[widget_key]
     with conn.session as s:
@@ -23,6 +23,33 @@ def db_update_datetime(field, date_key, time_key, gid):
         s.commit()
     st.toast(f"✅ Time Saved!", icon="⏱️")
 
+def update_gre_cb(widget_key, gid):
+    val = st.session_state[widget_key]
+    v = None if val == "-- Unassigned --" else val
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET assigned_gre = :v WHERE id = :id"), {"v": v, "id": gid})
+        s.commit()
+    st.toast("✅ GRE Assigned!", icon="🤝")
+
+def toggle_room_cb(k, gid):
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": int(st.session_state[k]), "id": gid})
+        s.commit()
+    st.toast("✅ Room status saved!", icon="🧹")
+    
+def toggle_pk_cb(k, gid):
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": int(st.session_state[k]), "id": gid})
+        s.commit()
+    st.toast("✅ Pickup status saved!", icon="🚗")
+
+def toggle_ashram_cb(k, gid):
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET ashram_tour = :a WHERE id = :id"), {"a": int(st.session_state[k]), "id": gid})
+        s.commit()
+    st.toast("✅ Ashram tour saved!", icon="🛕")
+
+
 def parse_dt(dt_str):
     if not dt_str or pd.isna(dt_str) or str(dt_str).strip() in ["", "TBD"]:
         return datetime.date.today(), datetime.time(12, 0)
@@ -32,9 +59,22 @@ def parse_dt(dt_str):
     except:
         return datetime.date.today(), datetime.time(12, 0)
 
+
+# --- 2. DIGNITARY DETAILS PAGE UI ---
 @st.dialog("DDP - Dignitary Details Page", width="large")
-def ddp_dialog(guest_data):
-    gid = guest_data['id']
+def ddp_dialog(guest_data_input):
+    gid = guest_data_input['id']
+    
+    # --- STABILITY FIX: Always fetch the freshest data to prevent update loops ---
+    try:
+        fresh_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": gid}, ttl=0)
+        if not fresh_df.empty:
+            guest_data = fresh_df.iloc[0].to_dict()
+        else:
+            guest_data = guest_data_input
+    except:
+        guest_data = guest_data_input
+
     st.subheader(f"👤 {guest_data['name']}")
     st.caption("✨ *Inline Editing Enabled: Type and press Enter or click away to save instantly.*")
     
@@ -57,7 +97,6 @@ def ddp_dialog(guest_data):
         st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"poc_{gid}",
                       on_change=db_update, args=("poc", f"poc_{gid}", gid))
                       
-        # --- NEW: GIFT TYPE ---
         st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"gift_{gid}",
                       on_change=db_update, args=("gift_type", f"gift_{gid}", gid))
 
@@ -72,16 +111,8 @@ def ddp_dialog(guest_data):
         current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
         if current_gre not in avail_gres: avail_gres.append(current_gre)
         
-        def update_gre(widget_key, gid):
-            val = st.session_state[widget_key]
-            v = None if val == "-- Unassigned --" else val
-            with conn.session as s:
-                s.execute(text("UPDATE guests SET assigned_gre = :v WHERE id = :id"), {"v": v, "id": gid})
-                s.commit()
-            st.toast("✅ GRE Assigned!", icon="🤝")
-
         st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
-                     key=f"gre_{gid}", on_change=update_gre, args=(f"gre_{gid}", gid))
+                     key=f"gre_{gid}", on_change=update_gre_cb, args=(f"gre_{gid}", gid))
 
         # --- WHATSAPP & CALLING FEATURE ---
         if current_gre != "-- Unassigned --":
@@ -125,33 +156,14 @@ def ddp_dialog(guest_data):
     with info_c3:
         st.markdown("### 🛎️ Ground Status")
         
-        def toggle_room(k, gid):
-            with conn.session as s:
-                s.execute(text("UPDATE guests SET room_cleaned = :r WHERE id = :id"), {"r": int(st.session_state[k]), "id": gid})
-                s.commit()
-            st.toast("✅ Room status saved!", icon="🧹")
-            
-        def toggle_pk(k, gid):
-            with conn.session as s:
-                s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": int(st.session_state[k]), "id": gid})
-                s.commit()
-            st.toast("✅ Pickup status saved!", icon="🚗")
-            
-        # --- NEW: ASHRAM TOUR TOGGLE ---
-        def toggle_ashram(k, gid):
-            with conn.session as s:
-                s.execute(text("UPDATE guests SET ashram_tour = :a WHERE id = :id"), {"a": int(st.session_state[k]), "id": gid})
-                s.commit()
-            st.toast("✅ Ashram tour saved!", icon="🛕")
-
-        st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room, args=(f"ddp_rm_{gid}", gid))
-        st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk, args=(f"ddp_pk_{gid}", gid))
-        st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram, args=(f"ddp_ash_{gid}", gid))
+        st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room_cb, args=(f"ddp_rm_{gid}", gid))
+        st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk_cb, args=(f"ddp_pk_{gid}", gid))
+        st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram_cb, args=(f"ddp_ash_{gid}", gid))
 
         st.divider()
         st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
 
-# --- BATCH ACTIONS DIALOG ---
+# --- 3. BATCH ACTIONS DIALOG ---
 @st.dialog("🛠️ Batch Actions", width="medium")
 def batch_actions_dialog(selected_ids):
     st.write(f"**Applying changes to {len(selected_ids)} selected guests.**")
