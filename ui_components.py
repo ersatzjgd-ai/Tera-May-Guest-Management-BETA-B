@@ -56,6 +56,10 @@ def ddp_dialog(guest_data):
         
         st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"poc_{gid}",
                       on_change=db_update, args=("poc", f"poc_{gid}", gid))
+                      
+        # --- NEW: GIFT TYPE ---
+        st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"gift_{gid}",
+                      on_change=db_update, args=("gift_type", f"gift_{gid}", gid))
 
     with info_c2:
         st.markdown("### ✈️ Logistics")
@@ -79,16 +83,14 @@ def ddp_dialog(guest_data):
         st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
                      key=f"gre_{gid}", on_change=update_gre, args=(f"gre_{gid}", gid))
 
-        # --- NEW: WHATSAPP & CALLING FEATURE (WITH DEBUG WARNINGS) ---
+        # --- WHATSAPP & CALLING FEATURE ---
         if current_gre != "-- Unassigned --":
             gre_query = conn.query("SELECT gre_phone FROM gres WHERE gre_name = :n", params={"n": current_gre}, ttl=0)
             if not gre_query.empty:
                 raw_phone = str(gre_query.iloc[0]['gre_phone']).strip()
                 if raw_phone and raw_phone.lower() not in ["none", "nan", ""]:
-                    # 1. Clickable Phone Number
                     st.markdown(f"📞 **Call {current_gre}:** [{raw_phone}](tel:{raw_phone})")
                     
-                    # 2. Smart WhatsApp Link Generation
                     clean_phone = re.sub(r'\D', '', raw_phone) 
                     
                     arr_str = guest_data.get('arrival_time', 'TBD')
@@ -96,8 +98,10 @@ def ddp_dialog(guest_data):
                     room_str = guest_data.get('housing', 'TBD')
                     poc_str = guest_data.get('poc', 'TBD')
                     pax_str = guest_data.get('accompanying_persons', 0)
+                    gift_str = guest_data.get('gift_type', 'Pending')
+                    ash_str = "Yes" if guest_data.get('ashram_tour') else "No"
                     
-                    wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n\nPlease ensure everything is ready."
+                    wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
                     
                     wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
                     st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
@@ -132,9 +136,17 @@ def ddp_dialog(guest_data):
                 s.execute(text("UPDATE guests SET airport_pickup_sent = :p WHERE id = :id"), {"p": int(st.session_state[k]), "id": gid})
                 s.commit()
             st.toast("✅ Pickup status saved!", icon="🚗")
+            
+        # --- NEW: ASHRAM TOUR TOGGLE ---
+        def toggle_ashram(k, gid):
+            with conn.session as s:
+                s.execute(text("UPDATE guests SET ashram_tour = :a WHERE id = :id"), {"a": int(st.session_state[k]), "id": gid})
+                s.commit()
+            st.toast("✅ Ashram tour saved!", icon="🛕")
 
-        st.toggle("Room Cleaned", value=bool(guest_data['room_cleaned']), key=f"ddp_rm_{gid}", on_change=toggle_room, args=(f"ddp_rm_{gid}", gid))
-        st.toggle("Pickup Sent", value=bool(guest_data['airport_pickup_sent']), key=f"ddp_pk_{gid}", on_change=toggle_pk, args=(f"ddp_pk_{gid}", gid))
+        st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room, args=(f"ddp_rm_{gid}", gid))
+        st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk, args=(f"ddp_pk_{gid}", gid))
+        st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram, args=(f"ddp_ash_{gid}", gid))
 
         st.divider()
         st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
