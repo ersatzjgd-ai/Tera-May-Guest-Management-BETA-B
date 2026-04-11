@@ -79,7 +79,7 @@ def ddp_dialog(guest_data):
         st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
                      key=f"gre_{gid}", on_change=update_gre, args=(f"gre_{gid}", gid))
 
-        # --- NEW: WHATSAPP & CALLING FEATURE ---
+        # --- NEW: WHATSAPP & CALLING FEATURE (WITH DEBUG WARNINGS) ---
         if current_gre != "-- Unassigned --":
             gre_query = conn.query("SELECT gre_phone FROM gres WHERE gre_name = :n", params={"n": current_gre}, ttl=0)
             if not gre_query.empty:
@@ -89,7 +89,7 @@ def ddp_dialog(guest_data):
                     st.markdown(f"📞 **Call {current_gre}:** [{raw_phone}](tel:{raw_phone})")
                     
                     # 2. Smart WhatsApp Link Generation
-                    clean_phone = re.sub(r'\D', '', raw_phone) # Strips formatting for WhatsApp API
+                    clean_phone = re.sub(r'\D', '', raw_phone) 
                     
                     arr_str = guest_data.get('arrival_time', 'TBD')
                     dep_str = guest_data.get('departure_time', 'TBD')
@@ -101,6 +101,10 @@ def ddp_dialog(guest_data):
                     
                     wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
                     st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
+                else:
+                    st.warning(f"⚠️ No phone number saved for {current_gre}.")
+            else:
+                st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
 
         st.divider()
         arr_d, arr_t = parse_dt(guest_data.get('arrival_time'))
