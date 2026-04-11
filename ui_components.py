@@ -15,8 +15,13 @@ def db_update(field, widget_key, gid):
         s.commit()
 
 def db_update_datetime(field, date_key, time_key, gid):
-    d_val = st.session_state[date_key]
-    t_val = st.session_state[time_key]
+    d_val = st.session_state.get(date_key)
+    t_val = st.session_state.get(time_key)
+    
+    # SAFTEY CHECK: Do not update the DB until BOTH date and time are selected
+    if not d_val or not t_val:
+        return 
+        
     final_dt = f"{d_val.strftime('%d/%m/%Y')} {t_val.strftime('%H:%M')}"
     with conn.session as s:
         s.execute(text(f"UPDATE guests SET {field} = :v WHERE id = :id"), {"v": final_dt, "id": gid})
@@ -137,16 +142,34 @@ def ddp_dialog(guest_data_input):
                 st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
 
         st.divider()
-        arr_d, arr_t = parse_dt(guest_data.get('arrival_time'))
-        dep_d, dep_t = parse_dt(guest_data.get('departure_time'))
+        
+        # --- ARRIVAL TIME LOGIC ---
+        arr_str = guest_data.get('arrival_time')
+        if not arr_str or str(arr_str).strip() in ["", "None", "TBD", "nan"]:
+            st.warning("⚠️ Date of Arrival: **Not Assigned**")
+            with st.expander("➕ Assign Arrival Date & Time"):
+                c_arr1, c_arr2 = st.columns(2)
+                c_arr1.date_input("Arrival Date", value=None, key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+                c_arr2.time_input("Arrival Time", value=None, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+        else:
+            arr_d, arr_t = parse_dt(arr_str)
+            c_arr1, c_arr2 = st.columns(2)
+            c_arr1.date_input("Arrival Date", value=arr_d, format="DD/MM/YYYY", key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+            c_arr2.time_input("Time", value=arr_t, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
 
-        c_arr1, c_arr2 = st.columns(2)
-        c_arr1.date_input("Arrival Date", value=arr_d, format="DD/MM/YYYY", key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
-        c_arr2.time_input("Time", value=arr_t, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
-
-        c_dep1, c_dep2 = st.columns(2)
-        c_dep1.date_input("Departure Date", value=dep_d, format="DD/MM/YYYY", key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
-        c_dep2.time_input("Time", value=dep_t, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+        # --- DEPARTURE TIME LOGIC ---
+        dep_str = guest_data.get('departure_time')
+        if not dep_str or str(dep_str).strip() in ["", "None", "TBD", "nan"]:
+            st.warning("⚠️ Date of Departure: **Not Assigned**")
+            with st.expander("➕ Assign Departure Date & Time"):
+                c_dep1, c_dep2 = st.columns(2)
+                c_dep1.date_input("Departure Date", value=None, key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+                c_dep2.time_input("Departure Time", value=None, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+        else:
+            dep_d, dep_t = parse_dt(dep_str)
+            c_dep1, c_dep2 = st.columns(2)
+            c_dep1.date_input("Departure Date", value=dep_d, format="DD/MM/YYYY", key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+            c_dep2.time_input("Time", value=dep_t, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
 
     with info_c3:
         st.markdown("### 🛎️ Ground Status")
