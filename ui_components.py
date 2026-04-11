@@ -180,6 +180,10 @@ def ddp_dialog(guest_data_input):
 
         st.divider()
         st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
+        
+        # --- NEW: HOUSING CONTACT ---
+        st.markdown("### 🏨 Housing Support")
+        st.markdown("📞 **Call Housing:** [9699372475](tel:9699372475)")
 
 # --- 3. BATCH ACTIONS DIALOG ---
 @st.dialog("🛠️ Batch Actions", width="medium")
