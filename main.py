@@ -60,9 +60,26 @@ def search_results_fragment():
     else:
         st.subheader("📊 Search Metrics")
         disp = filtered_df
-        m1, m2 = st.columns(2)
-        m1.metric("Total Results", len(disp))
-        m2.metric("Speakers", len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0)
+        
+        # 1. Prepare base metrics
+        metrics_data = [
+            ("Total Results", len(disp)),
+            ("Speakers", len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0)
+        ]
+        
+        # 2. Dynamically add category counts using pandas value_counts()
+        if not disp.empty and 'category' in disp.columns:
+            cat_counts = disp['category'].replace(r'^\s*$', 'Uncategorized', regex=True).fillna('Uncategorized').value_counts()
+            for cat_name, count in cat_counts.items():
+                metrics_data.append((str(cat_name), count))
+        
+        # 3. Render metrics cleanly in rows (max 4 columns per row so it doesn't get squished)
+        cols_per_row = 4
+        for i in range(0, len(metrics_data), cols_per_row):
+            cols = st.columns(cols_per_row)
+            chunk = metrics_data[i : i + cols_per_row]
+            for j, (label, val) in enumerate(chunk):
+                cols[j].metric(label, val)
 
     st.divider()
 
