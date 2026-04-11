@@ -117,35 +117,53 @@ def search_results_fragment():
                 if selected_ids: batch_actions_dialog(selected_ids)
                 else: st.warning("Select guests first.")
 
-        with st.container(border=True):
-            # Updated to 6 columns with balanced widths
-            h0, h1, h2, h3, h4, h5 = st.columns([0.5, 3, 2, 2, 2, 2])
-            h0.write("**☑**")
-            h1.write("**Guest Name**")
-            h2.write("**Date of Arrival**")
-            h3.write("**POC Name**")
-            h4.write("**GRE Name**")
-            h5.write("**# of Guests**")
+        st.divider()
+        st.subheader("📋 Search Results")
+
+        # 1. PREPARE THE DATA FOR DISPLAY
+        display_df = disp.copy()
+        
+        # Add the 🚨 alert emoji directly into the text for unassigned GREs
+        display_df['assigned_gre'] = display_df['assigned_gre'].apply(
+            lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x
+        )
+        
+        # Select only the columns you requested, in the exact order you requested
+        ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
+        
+        # Clean up the column headers for the UI
+        ui_df.columns = ['Guest Name', 'Date of Arrival', 'POC Name', 'GRE Name', 'Accompanying']
+        
+        # 2. RENDER THE HIGH-PERFORMANCE DATAFRAME
+        # This replaces 8,000 widgets with 1 native, blazing-fast table!
+        event = st.dataframe(
+            ui_df,
+            use_container_width=True,
+            hide_index=True,
+            selection_mode="multi-row",
+            on_select="rerun"
+        )
+        
+        # 3. HANDLE USER CLICKS & SELECTIONS
+        selected_indices = event.selection.rows
+        
+        if selected_indices:
+            # Map the selected row back to the actual Guest ID in the database
+            selected_ids = [disp.iloc[i]['id'] for i in selected_indices]
             
-            for _, row in disp.iterrows():
-                with st.container(border=True):
-                    r0, r1, r2, r3, r4, r5 = st.columns([0.5, 3, 2, 2, 2, 2])
-                    r0.checkbox(" ", key=f"chk_{row['id']}", label_visibility="collapsed")
+            # --- SINGLE GUEST SELECTED (Open DDP) ---
+            if len(selected_ids) == 1:
+                st.success(f"✅ Selected: **{disp.iloc[selected_indices[0]]['name']}**")
+                if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
+                    # Fetch the full row data and open the modal
+                    guest_data = disp[disp['id'] == selected_ids[0]].iloc[0].to_dict()
+                    ddp_dialog(guest_data)
                     
-                    gre_w = pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --"]
-                    icon = "🚨" if gre_w else "👤"
-                    
-                    if r1.button(f"{icon} {row['name']}", key=f"btn_{row['id']}", type="primary" if gre_w else "secondary", use_container_width=True): 
-                        ddp_dialog(row.to_dict())
-                    
-                    if gre_w:
-                        st.markdown("<p style='color: #ff4b4b; font-size: 11px; margin-top: -15px;'>🚨 UNASSIGNED</p>", unsafe_allow_html=True)
-                        
-                    # Reordered to match the requested left-to-right flow
-                    r2.write(row['arrival_time'] or "TBD")
-                    r3.write(row['poc'] or "TBD")
-                    r4.write(row['assigned_gre'] if not gre_w else "❌ Pending")
-                    r5.write(str(row.get('accompanying_persons', '0')))
+            # --- MULTIPLE GUESTS SELECTED (Open Batch Actions) ---
+            elif len(selected_ids) > 1:
+                st.info(f"☑️ {len(selected_ids)} Guests Selected")
+                if st.button("⚙️ Apply Batch Actions", type="primary", use_container_width=True):
+                    batch_actions_dialog(selected_ids)
     else: 
         st.warning("No guests found.")
 
