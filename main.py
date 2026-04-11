@@ -204,10 +204,24 @@ def main():
                 
                 with t1:
                     with st.form("gre_f"):
-                        gn, gp = st.text_input("Name"), st.text_input("Phone")
+                        gn = st.text_input("Name")
+                        gp = st.text_input("Phone (e.g., 9876543210)")
                         if st.form_submit_button("Create"):
+                            # --- AUTO-DETECT COUNTRY CODE LOGIC ---
+                            clean_phone = str(gp).strip()
+                            
+                            # 1. Strip spaces, dashes, parentheses
+                            clean_phone = "".join(c for c in clean_phone if c.isdigit() or c == "+")
+                            
+                            # 2. Add default +91 if no '+' is provided
+                            if clean_phone and not clean_phone.startswith("+"):
+                                if len(clean_phone) == 10:
+                                    clean_phone = "+91" + clean_phone
+                                else:
+                                    clean_phone = "+" + clean_phone
+                                    
                             with conn.session as s:
-                                s.execute(text("INSERT INTO gres (gre_name, gre_phone) VALUES (:n, :p)"), {"n": gn, "p": gp})
+                                s.execute(text("INSERT INTO gres (gre_name, gre_phone) VALUES (:n, :p)"), {"n": gn, "p": clean_phone})
                                 s.commit()
                             st.rerun()
                             
