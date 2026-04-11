@@ -15,7 +15,7 @@ def main():
         st.session_state.user = ""
 
     st.sidebar.title("🛂 Event Control")
-    mode = st.sidebar.radio("Navigate to:", ["Public Search", "Staff Portal (GRE)", "Admin Portal"])
+    mode = st.sidebar.radio("Navigate to:", ["Public Search", "GRE Portal", "Admin Portal"])
 
     # --- 1. PUBLIC SEARCH ---
     if mode == "Public Search":
