@@ -20,20 +20,29 @@ def init_db():
                 stay_location TEXT,
                 room_cleaned INTEGER DEFAULT 0,
                 assigned_gre TEXT,
-                poc TEXT
+                poc TEXT,
+                housing TEXT DEFAULT 'TBD'
             );
         '''))
         s.commit() 
 
+    # --- FORCE SPEAKER CATEGORY TO TEXT ---
+    with conn.session as s:
+        try:
+            s.execute(text("ALTER TABLE guests ALTER COLUMN speaker_category TYPE TEXT USING speaker_category::text;"))
+            s.commit()
+        except Exception:
+            s.rollback()
+
     # --- ISOLATED TRANSACTIONS WITH ROLLBACKS ---
-    # Prevents "Transaction Aborted" errors if columns already exist.
     columns_to_add = [
         ("departure_time", "TEXT"),
         ("poc", "TEXT"),
         ("assigned_gre", "TEXT"),
         ("category", "TEXT"),
         ("speaker_category", "TEXT"),
-        ("accompanying_persons", "INTEGER DEFAULT 0")
+        ("accompanying_persons", "INTEGER DEFAULT 0"),
+        ("housing", "TEXT DEFAULT 'TBD'")
     ]
     
     for col_name, col_type in columns_to_add:
