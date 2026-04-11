@@ -27,7 +27,7 @@ def search_results_fragment():
 
     st.title("🔍 Comprehensive Guest Search")
     f1, f2, f3 = st.columns([2, 2, 2])
-    with f1: s_name = st.text_input("👤 Guest Name", placeholder="Search...", key="s_name_input")
+    with f1: s_name = st.text_input("👤 Search Guest or POC", placeholder="Type name...", key="s_name_input")
     with f2:
         available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]]))) if not raw_df.empty else []
         s_cats = st.multiselect("🏷️ Categories", available, key="s_cat_select")
