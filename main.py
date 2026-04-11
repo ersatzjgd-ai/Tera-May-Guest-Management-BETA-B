@@ -30,10 +30,13 @@ def search_results_fragment():
     # Expand to 4 columns to make room for the new search box
     f1, f1a, f2, f3 = st.columns([2, 2, 2, 2]) 
     
-    with f1: s_name = st.text_input("👤 Guest Name", placeholder="Search guest...", key="s_name_input")
-    with f1a: s_poc = st.text_input("📞 POC Name", placeholder="Search POC...", key="s_poc_input")
+    # 1. Extract clean, sorted lists of unique names directly from the data
+    all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
+    all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
     
-    # (Keep your existing f2 and f3 code exactly as it is below this)
+    # 2. Use selectbox with index=None to create an autocomplete search bar
+    with f1: s_name = st.selectbox("👤 Guest Name", options=all_guests, index=None, placeholder="Type or select...", key="s_name_input")
+    with f1a: s_poc = st.selectbox("📞 POC Name", options=all_pocs, index=None, placeholder="Type or select...", key="s_poc_input")
     with f2:
         available = sorted(list(set([str(c).strip() for c in raw_df['category'].dropna() if str(c).strip() not in ["", "nan", "None", "--"]]))) if not raw_df.empty else []
         s_cats = st.multiselect("🏷️ Categories", available, key="s_cat_select")
@@ -43,13 +46,13 @@ def search_results_fragment():
 
     filtered_df = raw_df.copy()
     if not filtered_df.empty:
-        # 1. Strictly filter by Guest Name if typed
+        # 1. Filter by the exact Guest Name selected from the dropdown
         if s_name:
-            filtered_df = filtered_df[filtered_df['name'].str.contains(s_name, case=False, na=False)]
+            filtered_df = filtered_df[filtered_df['name'] == s_name]
         
-        # 2. Strictly filter by POC if typed
+        # 2. Filter by the exact POC selected from the dropdown
         if s_poc:
-            filtered_df = filtered_df[filtered_df['poc'].str.contains(s_poc, case=False, na=False)]
+            filtered_df = filtered_df[filtered_df['poc'] == s_poc]
         if s_cats: filtered_df = filtered_df[filtered_df['category'].isin(s_cats)]
         if isinstance(d_range, tuple) and len(d_range) == 2:
             def to_dummy(dt):
