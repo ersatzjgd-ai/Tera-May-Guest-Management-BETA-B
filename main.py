@@ -25,6 +25,7 @@ def search_results_fragment():
     
     if not raw_df.empty:
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
+        raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
     st.title("🔍 Comprehensive Guest Search")
     
