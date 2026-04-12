@@ -41,7 +41,9 @@ def search_results_fragment():
     with f2:
         available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
         s_cat = st.selectbox("🏷️ Category", ["All"] + available)
-    with f3: s_date = st.date_input("📅 Arrival Date", value=None)
+        
+    # UPDATE: Set value=[] to turn this into a Date Range Picker
+    with f3: s_date = st.date_input("📅 Arrival Date Range", value=[])
 
     # --- FILTERING LOGIC ---
     filtered_df = raw_df.copy()
@@ -52,8 +54,18 @@ def search_results_fragment():
         filtered_df = filtered_df[filtered_df['poc'] == s_poc]
     if s_cat != "All":
         filtered_df = filtered_df[filtered_df['category'] == s_cat]
-    if s_date:
-        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date]
+        
+    # UPDATE: Date Range Filtering Logic
+    if len(s_date) == 2:
+        # Both Start and End dates are selected
+        start_date, end_date = s_date
+        filtered_df = filtered_df[
+            (filtered_df['arrival_dt'].dt.date >= start_date) & 
+            (filtered_df['arrival_dt'].dt.date <= end_date)
+        ]
+    elif len(s_date) == 1:
+        # Only the Start date is selected so far
+        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
     # --- METRICS & TABLE DISPLAY ---
     if filtered_df.empty:
@@ -93,7 +105,6 @@ def search_results_fragment():
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
         ui_df.columns = ['Guest Name', 'Date of Arrival', 'POC Name', 'GRE Name', 'Accompanying']
         
-        # Renders instantly, regardless of row count
         event = st.dataframe(
             ui_df,
             use_container_width=True,
