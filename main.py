@@ -25,30 +25,31 @@ def search_results_fragment():
     
     if not raw_df.empty:
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
-        # Apply default chronological sorting
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
     st.title("📇 Guest Directory")
     
-    # --- 1. PRIMARY SEARCH (Clean & Prominent) ---
-    all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
-    all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
-    
-    col_name, col_poc = st.columns([3, 2])
-    with col_name: 
-        s_name = st.selectbox("👤 Quick Find (Guest Name)", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
-    with col_poc: 
-        s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
-    
-    # --- 2. ADVANCED FILTERS (Progressive Disclosure) ---
-    # Default is collapsed, keeping the UI completely clean!
-    s_cat, s_date = [], []
-    with st.expander("⚙️ Advanced Filters (Category & Date)"):
-        f_cat, f_date = st.columns(2)
-        with f_cat:
-            available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
-            s_cat = st.multiselect("🏷️ Category", options=available, placeholder="Select categories...")
-        with f_date: 
+    # --- 1. PROMINENT ENCASED SEARCH TOOL ---
+    # st.container(border=True) creates that distinct, isolated box effect
+    with st.container(border=True):
+        st.subheader("🔍 Search & Filter")
+        
+        all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
+        all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
+        available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
+        
+        # Row 1: Name and POC
+        r1c1, r1c2 = st.columns([3, 2])
+        with r1c1: 
+            s_name = st.selectbox("👤 Quick Find (Guest Name)", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
+        with r1c2: 
+            s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
+        
+        # Row 2: Category and Date (Brought out of hiding!)
+        r2c1, r2c2 = st.columns([3, 2])
+        with r2c1: 
+            s_cat = st.multiselect("🏷️ Category", options=available_cats, placeholder="Select categories...")
+        with r2c2: 
             s_date = st.date_input("📅 Arrival Date Range", value=[])
 
     # --- FILTERING LOGIC ---
@@ -64,34 +65,25 @@ def search_results_fragment():
     elif len(s_date) == 1:
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
-    # --- ACTIONABLE METRICS & TABLE ---
+    # --- COMPACT METRICS & TABLE ---
     if filtered_df.empty:
         st.warning("No guests found matching the criteria.")
     else:
-        st.divider()
         disp = filtered_df
         
-        # Calculate highly actionable metrics
         total_count = len(disp)
         speaker_count = len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0
-        
-        # Find how many guests in this specific search are missing a GRE
         pending_gres = len(disp[disp['assigned_gre'].isna() | disp['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
-        # Display clean, 3-column metrics
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Guests", total_count)
-        m2.metric("🎙️ Speakers", speaker_count)
-        m3.metric("🚨 Pending GRE Assignments", pending_gres, delta_color="inverse")
-
-        # Prepare UI Dataframe
+        # A sleek, inline markdown string replaces the massive metric boxes
+        st.markdown(f"📊 **Results:** `{total_count} Guests` &nbsp;&nbsp;|&nbsp;&nbsp; `🎙️ {speaker_count} Speakers` &nbsp;&nbsp;|&nbsp;&nbsp; `🚨 {pending_gres} Pending GREs`")
+        
         display_df = disp.copy()
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(
             lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x
         )
         
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
-        # Shorter, cleaner column headers
         ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
         
         event = st.dataframe(
