@@ -115,15 +115,43 @@ def search_results_fragment():
         )
         
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
-        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '# Guests']
+        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
         
-        event = st.dataframe(
-            ui_df,
-            use_container_width=True,
-            hide_index=True,
-            selection_mode="multi-row",
-            on_select="rerun"
-        )
+        # --- SIDE-BY-SIDE LAYOUT ---
+        # col_table gets 80% of the width, col_actions gets 20%
+        col_table, col_actions = st.columns([4, 1])
+        
+        with col_table:
+            event = st.dataframe(
+                ui_df,
+                use_container_width=True,
+                hide_index=True,
+                selection_mode="multi-row",
+                on_select="rerun",
+                height=400 # Locks the table height so the button is always visible!
+            )
+        
+        with col_actions:
+            # --- DYNAMIC SIDE BUTTON ---
+            selected_indices = event.selection.rows
+            
+            if selected_indices:
+                selected_ids = [disp.iloc[i]['id'] for i in selected_indices]
+                
+                # A little header so the button doesn't float aimlessly
+                st.markdown("### 🛠️ Actions") 
+                
+                if len(selected_ids) == 1:
+                    # Dynamically show the name of the person they selected on the button!
+                    guest_name = disp.iloc[selected_indices[0]]['name']
+                    
+                    if st.button(f"📂 Open DDP\n({guest_name})", type="primary", use_container_width=True):
+                        guest_data = disp[disp['id'] == selected_ids[0]].iloc[0].to_dict()
+                        ddp_dialog(guest_data)
+                        
+                elif len(selected_ids) > 1:
+                    if st.button(f"⚙️ Batch Actions\n({len(selected_ids)} selected)", type="primary", use_container_width=True):
+                        batch_actions_dialog(selected_ids)
         
         # --- DYNAMIC ACTION BUTTON ---
         selected_indices = event.selection.rows
