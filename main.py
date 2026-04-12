@@ -66,6 +66,7 @@ def search_results_fragment():
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
     # --- COMPACT METRICS & TABLE ---
+    # --- COMPACT METRICS & TABLE ---
     if filtered_df.empty:
         st.warning("No guests found matching the criteria.")
     else:
@@ -75,8 +76,21 @@ def search_results_fragment():
         speaker_count = len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0
         pending_gres = len(disp[disp['assigned_gre'].isna() | disp['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
-        # A sleek, inline markdown string replaces the massive metric boxes
-        st.markdown(f"📊 **Results:** `{total_count} Guests` &nbsp;&nbsp;|&nbsp;&nbsp; `🎙️ {speaker_count} Speakers` &nbsp;&nbsp;|&nbsp;&nbsp; `🚨 {pending_gres} Pending GREs`")
+        # 1. Start the base metric string
+        metric_str = f"📊 **Results:** `{total_count} Guests` &nbsp;&nbsp;|&nbsp;&nbsp; `🎙️ {speaker_count} Speakers` &nbsp;&nbsp;|&nbsp;&nbsp; `🚨 {pending_gres} Pending GREs`"
+        
+        # 2. Dynamically append category counts
+        if 'category' in disp.columns:
+            # Clean up empty strings and count the occurrences
+            cat_counts = disp['category'].replace(r'^\s*$', 'Uncategorized', regex=True).dropna().value_counts()
+            
+            # Loop through the found categories and add them to the text bar
+            for cat_name, count in cat_counts.items():
+                if count > 0:
+                    metric_str += f" &nbsp;&nbsp;|&nbsp;&nbsp; `🏷️ {cat_name}: {count}`"
+
+        # 3. Render the final dynamic string
+        st.markdown(metric_str)
         
         display_df = disp.copy()
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(
@@ -84,7 +98,7 @@ def search_results_fragment():
         )
         
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
-        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
+        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '# Guests']
         
         event = st.dataframe(
             ui_df,
