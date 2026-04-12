@@ -18,97 +18,81 @@ def fetch_all_guests():
 def search_results_fragment():
     raw_df = fetch_all_guests()
     
-    # Defensive Column Check for new features
+    # Defensive Column Check
     expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time', 'housing', 'gift_type', 'ashram_tour']
     for col in expected:
         if col not in raw_df.columns: raw_df[col] = None 
     
     if not raw_df.empty:
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
+        # Apply default chronological sorting
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
-    st.title("🔍 Comprehensive Guest Search")
+    st.title("📇 Guest Directory")
     
-    # --- SEARCH BAR UI ---
-    f1, f1a, f2, f3 = st.columns([2, 2, 2, 2]) 
-    
-    # Autocomplete Dropdowns
+    # --- 1. PRIMARY SEARCH (Clean & Prominent) ---
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
     
-    with f1: s_name = st.selectbox("👤 Guest Name", options=all_guests, index=None, placeholder="Type or select...", key="s_name_input")
-    with f1a: s_poc = st.multiselect("📞 POC Name", options=all_pocs, placeholder="Select multiple...", key="s_poc_input")
+    col_name, col_poc = st.columns([3, 2])
+    with col_name: 
+        s_name = st.selectbox("👤 Quick Find (Guest Name)", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
+    with col_poc: 
+        s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
     
-    with f2:
-        available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
-        s_cat = st.multiselect(" Category", options=available, placeholder="Select multiple...")
-        
-    # UPDATE: Set value=[] to turn this into a Date Range Picker
-    with f3: s_date = st.date_input("📅 Arrival Date Range", value=[])
+    # --- 2. ADVANCED FILTERS (Progressive Disclosure) ---
+    # Default is collapsed, keeping the UI completely clean!
+    s_cat, s_date = [], []
+    with st.expander("⚙️ Advanced Filters (Category & Date)"):
+        f_cat, f_date = st.columns(2)
+        with f_cat:
+            available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
+            s_cat = st.multiselect("🏷️ Category", options=available, placeholder="Select categories...")
+        with f_date: 
+            s_date = st.date_input("📅 Arrival Date Range", value=[])
 
     # --- FILTERING LOGIC ---
     filtered_df = raw_df.copy()
 
-    if s_name:
-        filtered_df = filtered_df[filtered_df['name'] == s_name]
-   
-    # If the admin selected one OR more POCs, keep guests whose POC is in that list
-    if s_poc:
-        filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
+    if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
+    if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
+    if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
         
-    # If the admin selected one OR more Categories, keep guests whose category is in that list
-    if s_cat:
-        filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
-        
-    # UPDATE: Date Range Filtering Logic
     if len(s_date) == 2:
-        # Both Start and End dates are selected
         start_date, end_date = s_date
-        filtered_df = filtered_df[
-            (filtered_df['arrival_dt'].dt.date >= start_date) & 
-            (filtered_df['arrival_dt'].dt.date <= end_date)
-        ]
+        filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= start_date) & (filtered_df['arrival_dt'].dt.date <= end_date)]
     elif len(s_date) == 1:
-        # Only the Start date is selected so far
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
-    # --- METRICS & TABLE DISPLAY ---
+    # --- ACTIONABLE METRICS & TABLE ---
     if filtered_df.empty:
         st.warning("No guests found matching the criteria.")
     else:
-        st.subheader("📊 Search Metrics")
+        st.divider()
         disp = filtered_df
         
-        # 1. Dynamic Category Metrics
-        metrics_data = [
-            ("Total Results", len(disp)),
-            ("Speakers", len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0)
-        ]
+        # Calculate highly actionable metrics
+        total_count = len(disp)
+        speaker_count = len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0
         
-        if not disp.empty and 'category' in disp.columns:
-            cat_counts = disp['category'].replace(r'^\s*$', 'Uncategorized', regex=True).fillna('Uncategorized').value_counts()
-            for cat_name, count in cat_counts.items():
-                metrics_data.append((str(cat_name), count))
-        
-        cols_per_row = 4
-        for i in range(0, len(metrics_data), cols_per_row):
-            cols = st.columns(cols_per_row)
-            chunk = metrics_data[i : i + cols_per_row]
-            for j, (label, val) in enumerate(chunk):
-                cols[j].metric(label, val)
+        # Find how many guests in this specific search are missing a GRE
+        pending_gres = len(disp[disp['assigned_gre'].isna() | disp['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
-        st.divider()
-        st.subheader("📋 Search Results")
+        # Display clean, 3-column metrics
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Guests", total_count)
+        m2.metric("🎙️ Speakers", speaker_count)
+        m3.metric("🚨 Pending GRE Assignments", pending_gres, delta_color="inverse")
 
-        # 2. High-Performance Data Grid
+        # Prepare UI Dataframe
         display_df = disp.copy()
-        
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(
             lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x
         )
         
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
-        ui_df.columns = ['Guest Name', 'Date of Arrival', 'POC Name', 'GRE Name', 'Accompanying']
+        # Shorter, cleaner column headers
+        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
         
         event = st.dataframe(
             ui_df,
@@ -118,21 +102,16 @@ def search_results_fragment():
             on_select="rerun"
         )
         
-        # 3. Dynamic Action Button
+        # --- DYNAMIC ACTION BUTTON ---
         selected_indices = event.selection.rows
-        
         if selected_indices:
             selected_ids = [disp.iloc[i]['id'] for i in selected_indices]
-            
             if len(selected_ids) == 1:
-                st.success(f"✅ Selected: **{disp.iloc[selected_indices[0]]['name']}**")
                 if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
                     guest_data = disp[disp['id'] == selected_ids[0]].iloc[0].to_dict()
                     ddp_dialog(guest_data)
-                    
             elif len(selected_ids) > 1:
-                st.info(f"☑️ {len(selected_ids)} Guests Selected")
-                if st.button("⚙️ Apply Batch Actions", type="primary", use_container_width=True):
+                if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)} selected)", type="primary", use_container_width=True):
                     batch_actions_dialog(selected_ids)
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
