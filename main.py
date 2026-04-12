@@ -36,11 +36,11 @@ def search_results_fragment():
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
     
     with f1: s_name = st.selectbox("👤 Guest Name", options=all_guests, index=None, placeholder="Type or select...", key="s_name_input")
-    with f1a: s_poc = st.selectbox("📞 POC Name", options=all_pocs, index=None, placeholder="Type or select...", key="s_poc_input")
+    with f1a: s_poc = st.multiselect("📞 POC Name", options=all_pocs, placeholder="Select multiple...", key="s_poc_input")
     
     with f2:
         available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
-        s_cat = st.selectbox("🏷️ Category", ["All"] + available)
+        s_cat = st.multiselect(" Category", options=available, placeholder="Select multiple...")
         
     # UPDATE: Set value=[] to turn this into a Date Range Picker
     with f3: s_date = st.date_input("📅 Arrival Date Range", value=[])
@@ -50,10 +50,14 @@ def search_results_fragment():
 
     if s_name:
         filtered_df = filtered_df[filtered_df['name'] == s_name]
+   
+    # If the admin selected one OR more POCs, keep guests whose POC is in that list
     if s_poc:
-        filtered_df = filtered_df[filtered_df['poc'] == s_poc]
-    if s_cat != "All":
-        filtered_df = filtered_df[filtered_df['category'] == s_cat]
+        filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
+        
+    # If the admin selected one OR more Categories, keep guests whose category is in that list
+    if s_cat:
+        filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
         
     # UPDATE: Date Range Filtering Logic
     if len(s_date) == 2:
