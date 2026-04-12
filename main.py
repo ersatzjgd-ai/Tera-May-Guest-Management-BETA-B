@@ -53,18 +53,24 @@ def search_results_fragment():
             s_date = st.date_input("📅 Arrival Date Range", value=[])
 
     # --- FILTERING LOGIC ---
-    filtered_df = raw_df.copy()
-
     if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
     if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
     if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
         
+    # --- UPDATED DATE FILTERING LOGIC ---
     if len(s_date) == 2:
-        start_date, end_date = s_date
-        filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= start_date) & (filtered_df['arrival_dt'].dt.date <= end_date)]
+        # Convert Streamlit dates to Pandas datetimes
+        start_ts = pd.to_datetime(s_date[0])
+        end_ts = pd.to_datetime(s_date[1])
+        
+        # .dt.normalize() sets all times to midnight so we can compare pure days safely
+        filtered_df = filtered_df[
+            (filtered_df['arrival_dt'].dt.normalize() >= start_ts) & 
+            (filtered_df['arrival_dt'].dt.normalize() <= end_ts)
+        ]
     elif len(s_date) == 1:
-        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
-
+        target_ts = pd.to_datetime(s_date[0])
+        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.normalize() == target_ts]
     # --- COMPACT METRICS & TABLE ---
     # --- COMPACT METRICS & TABLE ---
     if filtered_df.empty:
