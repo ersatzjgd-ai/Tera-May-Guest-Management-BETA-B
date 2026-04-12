@@ -53,17 +53,28 @@ def search_results_fragment():
             s_date = st.date_input("📅 Arrival Date Range", value=[])
 
     # --- FILTERING LOGIC ---
-    if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
-    if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
-    if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
+    # --- FILTERING LOGIC ---
+    filtered_df = raw_df.copy()
+
+    # 1. Bulletproof Name Filter
+    if s_name:
+        if isinstance(s_name, list):
+            filtered_df = filtered_df[filtered_df['name'].astype(str).isin([str(x) for x in s_name])]
+        else:
+            filtered_df = filtered_df[filtered_df['name'].astype(str) == str(s_name)]
+            
+    # 2. Bulletproof POC Filter
+    if s_poc: 
+        filtered_df = filtered_df[filtered_df['poc'].astype(str).isin([str(x) for x in s_poc])]
         
-    # --- UPDATED DATE FILTERING LOGIC ---
+    # 3. Bulletproof Category Filter
+    if s_cat: 
+        filtered_df = filtered_df[filtered_df['category'].astype(str).isin([str(x) for x in s_cat])]
+        
+    # 4. Bulletproof Date Filter
     if len(s_date) == 2:
-        # Convert Streamlit dates to Pandas datetimes
         start_ts = pd.to_datetime(s_date[0])
         end_ts = pd.to_datetime(s_date[1])
-        
-        # .dt.normalize() sets all times to midnight so we can compare pure days safely
         filtered_df = filtered_df[
             (filtered_df['arrival_dt'].dt.normalize() >= start_ts) & 
             (filtered_df['arrival_dt'].dt.normalize() <= end_ts)
