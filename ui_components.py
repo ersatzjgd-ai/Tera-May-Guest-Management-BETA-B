@@ -75,116 +75,175 @@ def ddp_dialog(guest_data_input):
     except:
         guest_data = guest_data_input
 
-    st.subheader(f"👤 {guest_data['name']}")
+    # Extract clean variables for the Header
+    name = guest_data.get('name', 'Unknown Guest')
+    cat = guest_data.get('category', 'Unassigned')
+    speaker = guest_data.get('speaker_category', '')
+    pax = guest_data.get('accompanying_persons', 0)
+    pax_val = int(pax) if pd.notna(pax) and str(pax).isdigit() else (pax if pd.notna(pax) else 0)
+
+    # --- 1. CLEAN HTML PROFILE HEADER ---
+    st.markdown(f"""
+    <style>
+    .ddp-header {{ 
+        background-color: #f8f9fa; 
+        padding: 20px; 
+        border-radius: 10px; 
+        margin-bottom: 20px; 
+        border-left: 6px solid #0068c9; 
+    }}
+    .ddp-title {{ 
+        font-size: 26px; 
+        font-weight: 800; 
+        margin-bottom: 8px; 
+        color: #1f2937; 
+    }}
+    .ddp-badge {{ 
+        background-color: #e5e7eb; 
+        padding: 6px 10px; 
+        border-radius: 6px; 
+        font-size: 13px; 
+        font-weight: 600; 
+        margin-right: 8px; 
+        color: #374151;
+        display: inline-block;
+    }}
+    .ddp-badge-speaker {{ 
+        background-color: #fef08a; 
+        color: #854d0e; 
+    }}
+    </style>
+    <div class="ddp-header">
+        <div class="ddp-title">{name}</div>
+        <div>
+            <span class="ddp-badge">🏷️ {cat}</span>
+            {f'<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>' if speaker == 'Speaker' else ''}
+            <span class="ddp-badge">👥 +{pax_val} Accompanying</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.caption("✨ *Inline Editing Enabled: Type and press Enter or click away to save instantly.*")
-    
-    info_c1, info_c2, info_c3 = st.columns(3)
-    
-    with info_c1:
-        st.markdown("### 🪪 Profile")
-        
-        st.text_input("Category", value=guest_data.get('category', ''), key=f"cat_{gid}", 
-                      on_change=db_update, args=("category", f"cat_{gid}", gid))
-        
-        st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], 
-                     index=0 if guest_data.get('speaker_category') == "Speaker" else 1,
-                     key=f"spk_{gid}", on_change=db_update, args=("speaker_category", f"spk_{gid}", gid))
-        
-        st.number_input("Accompanying Pax", min_value=0, 
-                        value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0,
-                        key=f"pax_{gid}", on_change=db_update, args=("accompanying_persons", f"pax_{gid}", gid))
-        
-        st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"poc_{gid}",
-                      on_change=db_update, args=("poc", f"poc_{gid}", gid))
-                      
-        st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"gift_{gid}",
-                      on_change=db_update, args=("gift_type", f"gift_{gid}", gid))
 
-    with info_c2:
-        st.markdown("### ✈️ Logistics")
-        
-        st.text_input("Housing / Room", value=guest_data.get('housing', 'TBD'), key=f"hou_{gid}",
-                      on_change=db_update, args=("housing", f"hou_{gid}", gid))
-        
-        gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
-        avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
-        current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
-        if current_gre not in avail_gres: avail_gres.append(current_gre)
-        
-        st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
-                     key=f"gre_{gid}", on_change=update_gre_cb, args=(f"gre_{gid}", gid))
+    # --- 2. TABBED NAVIGATION ---
+    t_profile, t_logistics, t_team = st.tabs(["🪪 Profile & Status", "✈️ Logistics & Times", "📞 Team & Comms"])
 
-        # --- WHATSAPP & CALLING FEATURE ---
-        if current_gre != "-- Unassigned --":
-            gre_query = conn.query("SELECT gre_phone FROM gres WHERE gre_name = :n", params={"n": current_gre}, ttl=0)
-            if not gre_query.empty:
-                raw_phone = str(gre_query.iloc[0]['gre_phone']).strip()
-                if raw_phone and raw_phone.lower() not in ["none", "nan", ""]:
-                    st.markdown(f"📞 **Call {current_gre}:** [{raw_phone}](tel:{raw_phone})")
-                    
-                    clean_phone = re.sub(r'\D', '', raw_phone) 
-                    
-                    arr_str = guest_data.get('arrival_time', 'TBD')
-                    dep_str = guest_data.get('departure_time', 'TBD')
-                    room_str = guest_data.get('housing', 'TBD')
-                    poc_str = guest_data.get('poc', 'TBD')
-                    pax_str = guest_data.get('accompanying_persons', 0)
-                    gift_str = guest_data.get('gift_type', 'Pending')
-                    ash_str = "Yes" if guest_data.get('ashram_tour') else "No"
-                    
-                    wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
-                    
-                    wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
-                    st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
-                else:
-                    st.warning(f"⚠️ No phone number saved for {current_gre}.")
+    # --- TAB 1: PROFILE & GROUND STATUS ---
+    with t_profile:
+        col_p1, col_p2 = st.columns(2)
+        
+        with col_p1:
+            st.text_input("Category", value=guest_data.get('category', ''), key=f"cat_{gid}", 
+                          on_change=db_update, args=("category", f"cat_{gid}", gid))
+            
+            st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], 
+                         index=0 if guest_data.get('speaker_category') == "Speaker" else 1,
+                         key=f"spk_{gid}", on_change=db_update, args=("speaker_category", f"spk_{gid}", gid))
+            
+            st.number_input("Accompanying Pax", min_value=0, 
+                            value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0,
+                            key=f"pax_{gid}", on_change=db_update, args=("accompanying_persons", f"pax_{gid}", gid))
+            
+            st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"gift_{gid}",
+                          on_change=db_update, args=("gift_type", f"gift_{gid}", gid))
+
+        with col_p2:
+            st.markdown("#### 🛎️ Ground Status")
+            st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room_cb, args=(f"ddp_rm_{gid}", gid))
+            st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk_cb, args=(f"ddp_pk_{gid}", gid))
+            st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram_cb, args=(f"ddp_ash_{gid}", gid))
+
+
+    # --- TAB 2: LOGISTICS & TIMES ---
+    with t_logistics:
+        col_l1, col_l2 = st.columns([3, 2])
+        
+        with col_l1:
+            # --- ARRIVAL TIME LOGIC ---
+            arr_str = guest_data.get('arrival_time')
+            if not arr_str or str(arr_str).strip() in ["", "None", "TBD", "nan"]:
+                st.warning("⚠️ Date of Arrival: **Not Assigned**")
+                with st.expander("➕ Assign Arrival Date & Time"):
+                    c_arr1, c_arr2 = st.columns(2)
+                    c_arr1.date_input("Arrival Date", value=None, key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+                    c_arr2.time_input("Arrival Time", value=None, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
             else:
-                st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
-
-        st.divider()
-        
-        # --- ARRIVAL TIME LOGIC ---
-        arr_str = guest_data.get('arrival_time')
-        if not arr_str or str(arr_str).strip() in ["", "None", "TBD", "nan"]:
-            st.warning("⚠️ Date of Arrival: **Not Assigned**")
-            with st.expander("➕ Assign Arrival Date & Time"):
+                arr_d, arr_t = parse_dt(arr_str)
                 c_arr1, c_arr2 = st.columns(2)
-                c_arr1.date_input("Arrival Date", value=None, key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
-                c_arr2.time_input("Arrival Time", value=None, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
-        else:
-            arr_d, arr_t = parse_dt(arr_str)
-            c_arr1, c_arr2 = st.columns(2)
-            c_arr1.date_input("Arrival Date", value=arr_d, format="DD/MM/YYYY", key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
-            c_arr2.time_input("Time", value=arr_t, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+                c_arr1.date_input("Arrival Date", value=arr_d, format="DD/MM/YYYY", key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
+                c_arr2.time_input("Arrival Time", value=arr_t, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
 
-        # --- DEPARTURE TIME LOGIC ---
-        dep_str = guest_data.get('departure_time')
-        if not dep_str or str(dep_str).strip() in ["", "None", "TBD", "nan"]:
-            st.warning("⚠️ Date of Departure: **Not Assigned**")
-            with st.expander("➕ Assign Departure Date & Time"):
+            st.divider()
+
+            # --- DEPARTURE TIME LOGIC ---
+            dep_str = guest_data.get('departure_time')
+            if not dep_str or str(dep_str).strip() in ["", "None", "TBD", "nan"]:
+                st.warning("⚠️ Date of Departure: **Not Assigned**")
+                with st.expander("➕ Assign Departure Date & Time"):
+                    c_dep1, c_dep2 = st.columns(2)
+                    c_dep1.date_input("Departure Date", value=None, key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+                    c_dep2.time_input("Departure Time", value=None, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+            else:
+                dep_d, dep_t = parse_dt(dep_str)
                 c_dep1, c_dep2 = st.columns(2)
-                c_dep1.date_input("Departure Date", value=None, key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
-                c_dep2.time_input("Departure Time", value=None, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
-        else:
-            dep_d, dep_t = parse_dt(dep_str)
-            c_dep1, c_dep2 = st.columns(2)
-            c_dep1.date_input("Departure Date", value=dep_d, format="DD/MM/YYYY", key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
-            c_dep2.time_input("Time", value=dep_t, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+                c_dep1.date_input("Departure Date", value=dep_d, format="DD/MM/YYYY", key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
+                c_dep2.time_input("Departure Time", value=dep_t, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
 
-    with info_c3:
-        st.markdown("### 🛎️ Ground Status")
+        with col_l2:
+            st.markdown("#### 🏨 Room Allocation")
+            st.text_input("Housing / Room", value=guest_data.get('housing', 'TBD'), key=f"hou_{gid}",
+                          on_change=db_update, args=("housing", f"hou_{gid}", gid))
+
+
+    # --- TAB 3: TEAM & COMMS ---
+    with t_team:
+        col_t1, col_t2 = st.columns(2)
         
-        st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room_cb, args=(f"ddp_rm_{gid}", gid))
-        st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk_cb, args=(f"ddp_pk_{gid}", gid))
-        st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram_cb, args=(f"ddp_ash_{gid}", gid))
+        with col_t1:
+            st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"poc_{gid}",
+                          on_change=db_update, args=("poc", f"poc_{gid}", gid))
+            
+            gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
+            avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
+            current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
+            if current_gre not in avail_gres: avail_gres.append(current_gre)
+            
+            st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
+                         key=f"gre_{gid}", on_change=update_gre_cb, args=(f"gre_{gid}", gid))
+            
+            st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
 
-        st.divider()
-        st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
-        
-        # --- NEW: HOUSING CONTACT ---
-        st.markdown("### 🏨 Housing Support")
-        st.markdown("📞 **Call Housing:** [9699372475](tel:9699372475)")
-
+        with col_t2:
+            st.markdown("#### 🏨 Housing Support")
+            st.markdown("📞 **Call Housing:** [9699372475](tel:9699372475)")
+            st.divider()
+            
+            # --- WHATSAPP & CALLING FEATURE ---
+            if current_gre != "-- Unassigned --":
+                gre_query = conn.query("SELECT gre_phone FROM gres WHERE gre_name = :n", params={"n": current_gre}, ttl=0)
+                if not gre_query.empty:
+                    raw_phone = str(gre_query.iloc[0]['gre_phone']).strip()
+                    if raw_phone and raw_phone.lower() not in ["none", "nan", ""]:
+                        st.markdown(f"📞 **Call {current_gre}:** [{raw_phone}](tel:{raw_phone})")
+                        
+                        clean_phone = re.sub(r'\D', '', raw_phone) 
+                        
+                        arr_str = guest_data.get('arrival_time', 'TBD')
+                        dep_str = guest_data.get('departure_time', 'TBD')
+                        room_str = guest_data.get('housing', 'TBD')
+                        poc_str = guest_data.get('poc', 'TBD')
+                        pax_str = guest_data.get('accompanying_persons', 0)
+                        gift_str = guest_data.get('gift_type', 'Pending')
+                        ash_str = "Yes" if guest_data.get('ashram_tour') else "No"
+                        
+                        wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
+                        
+                        wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
+                        st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
+                    else:
+                        st.warning(f"⚠️ No phone number saved for {current_gre}.")
+                else:
+                    st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
 # --- 3. BATCH ACTIONS DIALOG ---
 @st.dialog("🛠️ Batch Actions", width="medium")
 def batch_actions_dialog(selected_ids):
