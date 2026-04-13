@@ -96,7 +96,7 @@ def search_results_fragment():
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
             # --- SIDE-BY-SIDE DATAFRAME & BUTTONS ---
-            col_table, col_actions = st.columns([5, 2])
+            col_table, col_actions = st.columns([7, 2])
             
             with col_table:
                 event = st.dataframe(
