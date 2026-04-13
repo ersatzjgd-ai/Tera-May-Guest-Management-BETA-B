@@ -156,12 +156,12 @@ def search_results_fragment():
         
         # 🟢 SCENARIO A: SPREADSHEET MODE (> 20 Guests)
         if len(display_df) > 20:
-            st.info("💡 **Pro-tip:** Filter this list to 20 or fewer guests to unlock 1-click Quick Action buttons.")
+           
             
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            col_table, col_actions = st.columns([8, 2])
+            col_table, col_actions = st.columns([10, 2])
             
             with col_table:
                 event = st.dataframe(
@@ -201,7 +201,7 @@ def search_results_fragment():
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            col_hdr, col_alt = st.columns([8, 2])
+            col_hdr, col_alt = st.columns([10, 2])
             with col_hdr:
                 st.markdown("### ⚡ Quick Actions")
             with col_alt:
