@@ -75,59 +75,36 @@ def search_results_fragment():
                 <span style="margin-right: 25px;"><b>🎙️ Speakers:</b> {speakers}</span>
                 <span><b>🚨 Pending GRE:</b> {pending}</span>
             </div>
-        """, unsafe_allow_html=True)
+        """, unsafe_allow_allowed=True)
 
-        # --- 3. THE SMART HYBRID VIEW ---
+        # --- 3. DATA GRID ---
         display_df = filtered_df.copy()
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(
             lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x
         )
         
-        # 🟢 SCENARIO A: SPREADSHEET MODE (> 20 Guests)
-        if len(display_df) > 20:
-            st.info("💡 **Pro-tip:** Filter this list to 20 or fewer guests to unlock 1-click Quick Action buttons.")
-            
-            ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
-            ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
-            
-            event = st.dataframe(
-                ui_df,
-                use_container_width=True,
-                hide_index=True,
-                selection_mode="multi-row",
-                on_select="rerun"
-            )
-            
-            selected_indices = event.selection.rows
-            if selected_indices:
-                selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
-                if len(selected_ids) == 1:
-                    if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
-                        ddp_dialog(filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict())
-                elif len(selected_ids) > 1:
-                    if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True):
-                        batch_actions_dialog(selected_ids)
-                        
-        # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
-        else:
-            st.markdown("### ⚡ Quick Actions")
-            for _, row in display_df.iterrows():
-                with st.container(border=True):
-                    c_name, c_arr, c_poc, c_gre, c_btn = st.columns([3, 2, 2, 2, 2])
-                    
-                    with c_name: st.markdown(f"**{row['name']}**")
-                    with c_arr: st.caption(f"🕒 {row['arrival_time']}")
-                    with c_poc: st.caption(f"📞 {row['poc']}")
-                    
-                    with c_gre:
-                        if "🚨 Pending" in str(row['assigned_gre']):
-                            st.error("Unassigned")
-                        else:
-                            st.success(f"GRE: {row['assigned_gre']}")
-                            
-                    with c_btn:
-                        if st.button("📂 Open DDP", key=f"btn_ddp_{row['id']}", use_container_width=True):
-                            ddp_dialog(row.to_dict())
+        ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
+        ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
+        
+        event = st.dataframe(
+            ui_df,
+            use_container_width=True,
+            hide_index=True,
+            selection_mode="multi-row",
+            on_select="rerun"
+        )
+        
+        # Action Buttons
+        selected_indices = event.selection.rows
+        if selected_indices:
+            selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
+            if len(selected_ids) == 1:
+                if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
+                    guest_data = filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict()
+                    ddp_dialog(guest_data)
+            elif len(selected_ids) > 1:
+                if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True):
+                    batch_actions_dialog(selected_ids)
 
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
