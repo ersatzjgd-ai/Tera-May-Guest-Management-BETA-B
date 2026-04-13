@@ -127,7 +127,7 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            col_table, col_actions = st.columns([5, 2])
+            col_table, col_actions = st.columns([8, 2])
             
             with col_table:
                 event = st.dataframe(
