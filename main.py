@@ -27,89 +27,58 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
-    st.title("📇 Guest Directory")
+    # --- 1. HERO SEARCH SECTION ---
+    st.markdown("### Comprehensive Guest Search")
     
-    # --- 1. PROMINENT ENCASED SEARCH TOOL ---
-    # st.container(border=True) creates that distinct, isolated box effect
-    with st.container(border=True):
-        st.subheader("🔍 Search & Filter")
-        
-        all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
-        all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
-        available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
-        
-        # Row 1: Name and POC
-        r1c1, r1c2 = st.columns([3, 2])
-        with r1c1: 
-            s_name = st.selectbox("👤 Quick Find (Guest Name)", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
-        with r1c2: 
-            s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
-        
-        # Row 2: Category and Date (Brought out of hiding!)
-        r2c1, r2c2 = st.columns([3, 2])
-        with r2c1: 
-            s_cat = st.multiselect("🏷️ Category", options=available_cats, placeholder="Select categories...")
-        with r2c2: 
-            s_date = st.date_input("📅 Arrival Date Range", value=[])
+    all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
+    all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
+    
+    # Making the Search Box more prominent (Larger Column)
+    col_search, col_poc = st.columns([4, 2])
+    with col_search: 
+        s_name = st.selectbox("👤 QUICK FIND: START TYPING GUEST NAME", options=all_guests, index=None, placeholder="Search from 4000+ records...", key="s_name_input")
+    with col_poc: 
+        s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="All POCs", key="s_poc_input")
+    
+    # Tucking away the "Maintenance" filters
+    s_cat, s_date = [], []
+    with st.expander("🛠️ More Search Filters (Category, Date Range)"):
+        f_cat, f_date = st.columns(2)
+        with f_cat:
+            available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
+            s_cat = st.multiselect("🏷️ Category", options=available)
+        with f_date: 
+            s_date = st.date_input("📅 Arrival Range", value=[])
 
-    # --- FILTERING LOGIC ---
     # --- FILTERING LOGIC ---
     filtered_df = raw_df.copy()
-
-    # 1. Bulletproof Name Filter
-    if s_name:
-        if isinstance(s_name, list):
-            filtered_df = filtered_df[filtered_df['name'].astype(str).isin([str(x) for x in s_name])]
-        else:
-            filtered_df = filtered_df[filtered_df['name'].astype(str) == str(s_name)]
-            
-    # 2. Bulletproof POC Filter
-    if s_poc: 
-        filtered_df = filtered_df[filtered_df['poc'].astype(str).isin([str(x) for x in s_poc])]
+    if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
+    if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
+    if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
         
-    # 3. Bulletproof Category Filter
-    if s_cat: 
-        filtered_df = filtered_df[filtered_df['category'].astype(str).isin([str(x) for x in s_cat])]
-        
-    # 4. Bulletproof Date Filter
     if len(s_date) == 2:
-        start_ts = pd.to_datetime(s_date[0])
-        end_ts = pd.to_datetime(s_date[1])
-        filtered_df = filtered_df[
-            (filtered_df['arrival_dt'].dt.normalize() >= start_ts) & 
-            (filtered_df['arrival_dt'].dt.normalize() <= end_ts)
-        ]
+        start_date, end_date = s_date
+        filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= start_date) & (filtered_df['arrival_dt'].dt.date <= end_date)]
     elif len(s_date) == 1:
-        target_ts = pd.to_datetime(s_date[0])
-        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.normalize() == target_ts]
-    # --- COMPACT METRICS & TABLE ---
-    # --- COMPACT METRICS & TABLE ---
-    if filtered_df.empty:
-        st.warning("No guests found matching the criteria.")
-    else:
-        disp = filtered_df
-        
-        total_count = len(disp)
-        speaker_count = len(disp[disp['speaker_category'] == 'Speaker']) if not disp.empty else 0
-        pending_gres = len(disp[disp['assigned_gre'].isna() | disp['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
+        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
-        # 1. Start the base metric string
-        metric_str = f"📊 **Results:** `{total_count} Guests` &nbsp;&nbsp;|&nbsp;&nbsp; `🎙️ {speaker_count} Speakers` &nbsp;&nbsp;|&nbsp;&nbsp; `🚨 {pending_gres} Pending GREs`"
-        
-        # 2. Dynamically append category counts
-        if 'category' in disp.columns:
-            # Clean up empty strings and count the occurrences
-            cat_counts = disp['category'].replace(r'^\s*$', 'Uncategorized', regex=True).dropna().value_counts()
-            
-            # Loop through the found categories and add them to the text bar
-            for cat_name, count in cat_counts.items():
-                if count > 0:
-                    metric_str += f" &nbsp;&nbsp;|&nbsp;&nbsp; `🏷️ {cat_name}: {count}`"
+    # --- 2. COMPACT SUMMARY BAR (Smaller Metrics) ---
+    if not filtered_df.empty:
+        total = len(filtered_df)
+        speakers = len(filtered_df[filtered_df['speaker_category'] == 'Speaker'])
+        pending = len(filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
-        # 3. Render the final dynamic string
-        st.markdown(metric_str)
-        
-        display_df = disp.copy()
+        # Using a styled markdown container for a "Summary Bar" look
+        st.markdown(f"""
+            <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin: 10px 0px;">
+                <span style="margin-right: 25px;"><b>Total:</b> {total}</span>
+                <span style="margin-right: 25px;"><b>🎙️ Speakers:</b> {speakers}</span>
+                <span><b>🚨 Pending GRE:</b> {pending}</span>
+            </div>
+        """, unsafe_allow_allowed=True)
+
+        # --- 3. DATA GRID ---
+        display_df = filtered_df.copy()
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(
             lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x
         )
@@ -117,52 +86,24 @@ def search_results_fragment():
         ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
         ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
         
-        # --- SIDE-BY-SIDE LAYOUT ---
-        # col_table gets 80% of the width, col_actions gets 20%
-        col_table, col_actions = st.columns([4, 1])
+        event = st.dataframe(
+            ui_df,
+            use_container_width=True,
+            hide_index=True,
+            selection_mode="multi-row",
+            on_select="rerun"
+        )
         
-        with col_table:
-            event = st.dataframe(
-                ui_df,
-                use_container_width=True,
-                hide_index=True,
-                selection_mode="multi-row",
-                on_select="rerun",
-                height=400 # Locks the table height so the button is always visible!
-            )
-        
-        with col_actions:
-            # --- DYNAMIC SIDE BUTTON ---
-            selected_indices = event.selection.rows
-            
-            if selected_indices:
-                selected_ids = [disp.iloc[i]['id'] for i in selected_indices]
-                
-                # A little header so the button doesn't float aimlessly
-                st.markdown("### 🛠️ Actions") 
-                
-                if len(selected_ids) == 1:
-                    # Dynamically show the name of the person they selected on the button!
-                    guest_name = disp.iloc[selected_indices[0]]['name']
-                    
-                    if st.button(f"📂 Open DDP\n({guest_name})", type="primary", use_container_width=True):
-                        guest_data = disp[disp['id'] == selected_ids[0]].iloc[0].to_dict()
-                        ddp_dialog(guest_data)
-                        
-                elif len(selected_ids) > 1:
-                    if st.button(f"⚙️ Batch Actions\n({len(selected_ids)} selected)", type="primary", use_container_width=True):
-                        batch_actions_dialog(selected_ids)
-        
-        # --- DYNAMIC ACTION BUTTON ---
+        # Action Buttons
         selected_indices = event.selection.rows
         if selected_indices:
-            selected_ids = [disp.iloc[i]['id'] for i in selected_indices]
+            selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
             if len(selected_ids) == 1:
                 if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
-                    guest_data = disp[disp['id'] == selected_ids[0]].iloc[0].to_dict()
+                    guest_data = filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict()
                     ddp_dialog(guest_data)
             elif len(selected_ids) > 1:
-                if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)} selected)", type="primary", use_container_width=True):
+                if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True):
                     batch_actions_dialog(selected_ids)
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
@@ -227,7 +168,7 @@ def main():
             st.dataframe(df, use_container_width=True)
 
     elif mode == "Staff Portal (GRE)":
-        st.title("🛎️ Staff Portal (GRE)")
+        st.title("🛎️ GRE Portal)")
         gre_name = st.text_input("Enter GRE Name")
         if gre_name:
             st.info(f"Welcome {gre_name}. (Feature logic remains in main script for now).")
