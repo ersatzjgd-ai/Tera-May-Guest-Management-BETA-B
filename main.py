@@ -25,6 +25,7 @@ def alerts_overview_dialog(alerts_df):
 # --- 2. SEARCH & RESULTS FRAGMENT ---
 # --- 2. SEARCH & RESULTS FRAGMENT ---
 # --- 2. SEARCH & RESULTS FRAGMENT ---
+# --- 2. SEARCH & RESULTS FRAGMENT ---
 @st.fragment
 def search_results_fragment():
     raw_df = fetch_all_guests()
@@ -87,16 +88,22 @@ def search_results_fragment():
     alerts_df = pd.DataFrame(alerts_list)
     num_alerts = len(alerts_df)
 
-    # CSS to force the exact Red/Green button colors without breaking Streamlit themes
+    # CSS to force button colors AND make the search block yellow
     st.markdown("""
         <style>
+        /* Target the specific bordered container holding the search tools and make it a soft yellow */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(div:contains("👤 Guest Name")) { 
+            background-color: #FFF9C4 !important; 
+            border: 2px solid #FBC02D !important;
+        }
+        
+        /* Keep the alerts buttons Red/Green */
         button:has(div:contains("🔴 ALERTS")) { background-color: #ff4b4b !important; color: white !important; border: none !important; }
         button:has(div:contains("🟢 ALERTS")) { background-color: #04AA6D !important; color: white !important; border: none !important; }
         </style>
     """, unsafe_allow_html=True)
 
     # --- AUTOMATIC SCROLL TRIGGER ---
-    # Creates an invisible anchor and scrolls to it ONLY if a search filter is actively being used.
     st.markdown("<div id='results-anchor'></div>", unsafe_allow_html=True)
     if s_name or s_poc or s_cat or s_date:
         st.markdown("""
@@ -134,7 +141,7 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            col_table, col_actions = st.columns([8, 2])
+            col_table, col_actions = st.columns([5, 2])
             
             with col_table:
                 event = st.dataframe(
@@ -172,7 +179,7 @@ def search_results_fragment():
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            col_hdr, col_alt = st.columns([5, 2])
+            col_hdr, col_alt = st.columns([8, 2])
             with col_hdr:
                 st.markdown("### ⚡ Quick Actions")
             with col_alt:
@@ -186,29 +193,25 @@ def search_results_fragment():
 
             for _, row in display_df.iterrows():
                 with st.container(border=True):
-                    # 5 columns for the flat "bar" layout. Name gets slightly more room.
                     c_name, c_arr, c_poc, c_acc, c_gre = st.columns([3, 2, 2, 1, 3])
                     
                     with c_name:
-                        # The guest name is now the action button
                         if st.button(f" {row['name']}", key=f"btn_name_{row['id']}", use_container_width=True):
                             ddp_dialog(row.to_dict())
                             
                     with c_arr:
-                        st.write(f"Arrival: {row['arrival_time']}")
+                        st.write(f"Arrival {row['arrival_time']}")
                         
                     with c_poc:
                         st.write(f"POC: {row['poc']}")
                         
                     with c_acc:
                         acc = row['accompanying_persons']
-                        # Format cleanly as an integer if possible, default to 0
                         acc_val = int(acc) if pd.notna(acc) and str(acc).isdigit() else (acc if pd.notna(acc) else 0)
                         st.write(f"Extras +{acc_val}")
                         
                     with c_gre:
                         if "🚨 Pending" in str(row['assigned_gre']):
-                            # Uses Streamlit's native color syntax to safely turn text red
                             st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
                         else:
                             st.write(f"GRE: {row['assigned_gre']}")
