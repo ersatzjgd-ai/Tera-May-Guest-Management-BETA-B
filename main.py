@@ -28,25 +28,24 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
+        # --- BUG FIX: Standardize Category Names ---
+        # This fixes the issue of having 3 different "Bollywood"s caused by spaces or capitalization
+        raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
+
     # --- 1. PROMINENT HERO SEARCH SECTION ---
-    # Making the header massive and bold
     st.markdown("## **🔍 GUEST DIRECTORY SEARCH**")
     
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
     available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
     
-    # Enclosing the search tools in a prominent border to make it the centerpiece
     with st.container(border=True):
         col_name, col_poc = st.columns([3, 2])
         with col_name: 
-            # Simple placeholder, bold label
             s_name = st.selectbox("**👤 Guest Name**", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
         with col_poc: 
-            # Simple placeholder, bold label
             s_poc = st.multiselect("**📞 Filter by POC**", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
         
-        # ALL filters exposed, no more expander. Perfectly aligned underneath.
         col_cat, col_date = st.columns([3, 2])
         with col_cat:
             s_cat = st.multiselect("**🏷️ Category**", options=available_cats, placeholder="Select categories...")
@@ -65,18 +64,24 @@ def search_results_fragment():
     elif len(s_date) == 1:
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
-    # --- 2. COMPACT SUMMARY BAR (Smaller Metrics) ---
+    # --- 2. COMPACT SUMMARY BAR (Dynamic Metrics) ---
     if not filtered_df.empty:
         total = len(filtered_df)
-        speakers = len(filtered_df[filtered_df['speaker_category'] == 'Speaker'])
         pending = len(filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
+
+        # --- DYNAMIC CATEGORY COUNTER ---
+        # This counts whatever categories are currently in your search results
+        cat_counts = filtered_df['category'].value_counts()
+        cat_html = ""
+        for cat_name, count in cat_counts.items():
+            cat_html += f"<span style='margin-right: 25px;'><b>🏷️ {cat_name}:</b> {count}</span>"
 
         # Using a styled markdown container for a "Summary Bar" look
         st.markdown(f"""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin: 10px 0px;">
                 <span style="margin-right: 25px;"><b>Total:</b> {total}</span>
-                <span style="margin-right: 25px;"><b>🎙️ Speakers:</b> {speakers}</span>
-                <span><b>🚨 Pending GRE:</b> {pending}</span>
+                <span style="margin-right: 25px;"><b>🚨 Pending GRE:</b> {pending}</span>
+                {cat_html}
             </div>
         """, unsafe_allow_html=True)
 
@@ -113,7 +118,7 @@ def search_results_fragment():
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            st.markdown("### ⚡ Quick Actions")
+            st.markdown("### Search Results")
             for _, row in display_df.iterrows():
                 with st.container(border=True):
                     c_name, c_arr, c_poc, c_gre, c_btn = st.columns([3, 2, 2, 2, 2])
