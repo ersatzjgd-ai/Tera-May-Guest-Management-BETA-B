@@ -130,7 +130,6 @@ def search_results_fragment():
                             ddp_dialog(row.to_dict())
 
 
-
 # --- 3. ADMIN TOOLS FRAGMENT ---
 @st.fragment
 def admin_tools_fragment():
