@@ -50,17 +50,25 @@ def search_results_fragment():
     available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
     
     with st.container(border=True):
+        # Hidden target for CSS to find this specific box safely
+        st.markdown("<span class='search-box-target'></span>", unsafe_allow_html=True)
+        
         col_name, col_poc = st.columns([3, 2])
         with col_name: 
             s_name = st.selectbox("**👤 Guest Name**", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
         with col_poc: 
             s_poc = st.multiselect("**📞 Filter by POC**", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
         
-        col_cat, col_date = st.columns([3, 2])
+        # Added a 3rd column for the Unassigned toggle
+        col_cat, col_date, col_unassigned = st.columns([3, 2, 2])
         with col_cat:
             s_cat = st.multiselect("**🏷️ Category**", options=available_cats, placeholder="Select categories...")
         with col_date: 
             s_date = st.date_input("**📅 Arrival Date Range**", value=[])
+        with col_unassigned:
+            # Spacer to push the checkbox down so it aligns perfectly with the input boxes above
+            st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True)
+            s_unassigned = st.checkbox("**🚨 Show ONLY Unassigned GRE**")
 
     # --- FILTERING LOGIC ---
     filtered_df = raw_df.copy()
@@ -73,6 +81,10 @@ def search_results_fragment():
         filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= start_date) & (filtered_df['arrival_dt'].dt.date <= end_date)]
     elif len(s_date) == 1:
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
+        
+    # NEW logic to filter by Unassigned GRE
+    if s_unassigned:
+        filtered_df = filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])]
 
     # --- ALERTS LOGIC (Generates the data for the button) ---
     alerts_list = []
@@ -88,24 +100,32 @@ def search_results_fragment():
     alerts_df = pd.DataFrame(alerts_list)
     num_alerts = len(alerts_df)
 
-    # CSS to force button colors AND make the search block yellow
+    # CSS to force button colors AND make the search block yellow (Using standard class selectors now)
     st.markdown("""
         <style>
         /* Target the specific bordered container holding the search tools and make it a soft yellow */
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(div:contains("👤 Guest Name")) { 
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.search-box-target) { 
             background-color: #FFF9C4 !important; 
             border: 2px solid #FBC02D !important;
         }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.search-box-target) > div {
+            background-color: #FFF9C4 !important;
+        }
         
-        /* Keep the alerts buttons Red/Green */
-        button:has(div:contains("🔴 ALERTS")) { background-color: #ff4b4b !important; color: white !important; border: none !important; }
-        button:has(div:contains("🟢 ALERTS")) { background-color: #04AA6D !important; color: white !important; border: none !important; }
+        /* Keep the alerts buttons Red/Green perfectly by targeting sibling elements */
+        div.element-container:has(.btn-red-target) + div.element-container button { 
+            background-color: #ff4b4b !important; color: white !important; border: none !important; 
+        }
+        div.element-container:has(.btn-green-target) + div.element-container button { 
+            background-color: #04AA6D !important; color: white !important; border: none !important; 
+        }
         </style>
     """, unsafe_allow_html=True)
 
     # --- AUTOMATIC SCROLL TRIGGER ---
     st.markdown("<div id='results-anchor'></div>", unsafe_allow_html=True)
-    if s_name or s_poc or s_cat or s_date:
+    # Added s_unassigned to the trigger so it scrolls if they check the box
+    if s_name or s_poc or s_cat or s_date or s_unassigned:
         st.markdown("""
             <iframe src="javascript:window.parent.document.getElementById('results-anchor').scrollIntoView({behavior: 'smooth'});" width="0" height="0" style="border:none; display:none;"></iframe>
         """, unsafe_allow_html=True)
@@ -155,9 +175,11 @@ def search_results_fragment():
             with col_actions:
                 # --- ALERTS BUTTON (Right Side) ---
                 if num_alerts > 0:
+                    st.markdown("<span class='btn-red-target'></span>", unsafe_allow_html=True)
                     if st.button(f"🔴 ALERTS ({num_alerts})", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
                 else:
+                    st.markdown("<span class='btn-green-target'></span>", unsafe_allow_html=True)
                     if st.button("🟢 ALERTS (0)", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
                 
@@ -185,9 +207,11 @@ def search_results_fragment():
             with col_alt:
                 # --- ALERTS BUTTON (Right Side) ---
                 if num_alerts > 0:
+                    st.markdown("<span class='btn-red-target'></span>", unsafe_allow_html=True)
                     if st.button(f"🔴 ALERTS ({num_alerts})", key="alt_btn_sm", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
                 else:
+                    st.markdown("<span class='btn-green-target'></span>", unsafe_allow_html=True)
                     if st.button("🟢 ALERTS (0)", key="alt_btn_sm", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
 
