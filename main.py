@@ -29,7 +29,6 @@ def search_results_fragment():
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
         # --- BUG FIX: Standardize Category Names ---
-        # This fixes the issue of having 3 different "Bollywood"s caused by spaces or capitalization
         raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
 
     # --- 1. PROMINENT HERO SEARCH SECTION ---
@@ -70,13 +69,11 @@ def search_results_fragment():
         pending = len(filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
         # --- DYNAMIC CATEGORY COUNTER ---
-        # This counts whatever categories are currently in your search results
         cat_counts = filtered_df['category'].value_counts()
         cat_html = ""
         for cat_name, count in cat_counts.items():
             cat_html += f"<span style='margin-right: 25px;'><b>🏷️ {cat_name}:</b> {count}</span>"
 
-        # Using a styled markdown container for a "Summary Bar" look
         st.markdown(f"""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin: 10px 0px;">
                 <span style="margin-right: 25px;"><b>Total:</b> {total}</span>
@@ -98,27 +95,35 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            event = st.dataframe(
-                ui_df,
-                use_container_width=True,
-                hide_index=True,
-                selection_mode="multi-row",
-                on_select="rerun"
-            )
+            # --- SIDE-BY-SIDE DATAFRAME & BUTTONS ---
+            col_table, col_actions = st.columns([5, 2])
             
-            selected_indices = event.selection.rows
-            if selected_indices:
-                selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
-                if len(selected_ids) == 1:
-                    if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
-                        ddp_dialog(filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict())
-                elif len(selected_ids) > 1:
-                    if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True):
-                        batch_actions_dialog(selected_ids)
+            with col_table:
+                event = st.dataframe(
+                    ui_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    selection_mode="multi-row",
+                    on_select="rerun"
+                )
+            
+            with col_actions:
+                selected_indices = event.selection.rows
+                if selected_indices:
+                    st.markdown("### ⚡ Actions")
+                    selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
+                    if len(selected_ids) == 1:
+                        if st.button("📂 Open Guest Details", type="primary", use_container_width=True):
+                            ddp_dialog(filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict())
+                    elif len(selected_ids) > 1:
+                        if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True):
+                            batch_actions_dialog(selected_ids)
+                else:
+                    st.caption("👈 Select a guest in the table to view actions.")
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            st.markdown("### Search Results")
+            st.markdown("### ⚡ Quick Actions")
             for _, row in display_df.iterrows():
                 with st.container(border=True):
                     c_name, c_arr, c_poc, c_gre, c_btn = st.columns([3, 2, 2, 2, 2])
