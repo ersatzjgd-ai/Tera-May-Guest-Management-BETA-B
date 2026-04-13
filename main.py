@@ -134,7 +134,7 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            col_table, col_actions = st.columns([5, 2])
+            col_table, col_actions = st.columns([8, 2])
             
             with col_table:
                 event = st.dataframe(
@@ -204,7 +204,7 @@ def search_results_fragment():
                         acc = row['accompanying_persons']
                         # Format cleanly as an integer if possible, default to 0
                         acc_val = int(acc) if pd.notna(acc) and str(acc).isdigit() else (acc if pd.notna(acc) else 0)
-                        st.write(f"+1s +{acc_val}")
+                        st.write(f"Extras +{acc_val}")
                         
                     with c_gre:
                         if "🚨 Pending" in str(row['assigned_gre']):
