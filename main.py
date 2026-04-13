@@ -95,6 +95,14 @@ def search_results_fragment():
         </style>
     """, unsafe_allow_html=True)
 
+    # --- AUTOMATIC SCROLL TRIGGER ---
+    # Creates an invisible anchor and scrolls to it ONLY if a search filter is actively being used.
+    st.markdown("<div id='results-anchor'></div>", unsafe_allow_html=True)
+    if s_name or s_poc or s_cat or s_date:
+        st.markdown("""
+            <iframe src="javascript:window.parent.document.getElementById('results-anchor').scrollIntoView({behavior: 'smooth'});" width="0" height="0" style="border:none; display:none;"></iframe>
+        """, unsafe_allow_html=True)
+
     # --- 2. COMPACT SUMMARY BAR (Dynamic Metrics) ---
     if not filtered_df.empty:
         total = len(filtered_df)
@@ -183,27 +191,27 @@ def search_results_fragment():
                     
                     with c_name:
                         # The guest name is now the action button
-                        if st.button(f"📂 {row['name']}", key=f"btn_name_{row['id']}", use_container_width=True):
+                        if st.button(f" {row['name']}", key=f"btn_name_{row['id']}", use_container_width=True):
                             ddp_dialog(row.to_dict())
                             
                     with c_arr:
-                        st.write(f"🕒 {row['arrival_time']}")
+                        st.write(f"Arrival: {row['arrival_time']}")
                         
                     with c_poc:
-                        st.write(f"📞 {row['poc']}")
+                        st.write(f"POC: {row['poc']}")
                         
                     with c_acc:
                         acc = row['accompanying_persons']
                         # Format cleanly as an integer if possible, default to 0
                         acc_val = int(acc) if pd.notna(acc) and str(acc).isdigit() else (acc if pd.notna(acc) else 0)
-                        st.write(f"👥 +{acc_val}")
+                        st.write(f"+1s +{acc_val}")
                         
                     with c_gre:
                         if "🚨 Pending" in str(row['assigned_gre']):
                             # Uses Streamlit's native color syntax to safely turn text red
                             st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
                         else:
-                            st.write(f"👔 {row['assigned_gre']}")
+                            st.write(f"GRE: {row['assigned_gre']}")
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
 @st.fragment
