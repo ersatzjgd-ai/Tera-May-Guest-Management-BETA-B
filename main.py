@@ -12,6 +12,16 @@ def fetch_all_guests():
     """Fetches data and caches it for 20 seconds to prevent DB latency"""
     return conn.query("SELECT * FROM guests", ttl=0)
 
+# ALERTS OVERVIEW BUTTON 
+@st.dialog("🚨 Guest Alerts Overview")
+def alerts_overview_dialog(alerts_df):
+    if alerts_df.empty:
+        st.success("✅ All clear! No active alerts for the current search results.")
+    else:
+        st.error(f"Found {len(alerts_df)} guests requiring attention.")
+        st.dataframe(alerts_df, use_container_width=True, hide_index=True)
+# ALERTS OVERVIEW BUTTON 
+
 # --- 2. SEARCH & RESULTS FRAGMENT ---
 # --- 2. SEARCH & RESULTS FRAGMENT ---
 # --- 2. SEARCH & RESULTS FRAGMENT ---
@@ -63,12 +73,34 @@ def search_results_fragment():
     elif len(s_date) == 1:
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
 
+    # --- ALERTS LOGIC (Generates the data for the button) ---
+    alerts_list = []
+    if not filtered_df.empty:
+        for _, row in filtered_df.iterrows():
+            guest_alerts = []
+            if pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None"]:
+                guest_alerts.append("GRE Not Assigned")
+            # If you track room cleaning, you would add: if not row['room_cleaned']: guest_alerts.append("Room Not Cleaned")
+            
+            if guest_alerts:
+                alerts_list.append({"Guest": row['name'], "Alert(s)": " | ".join(guest_alerts), "POC": row['poc']})
+    
+    alerts_df = pd.DataFrame(alerts_list)
+    num_alerts = len(alerts_df)
+
+    # CSS to force the exact Red/Green button colors without breaking Streamlit themes
+    st.markdown("""
+        <style>
+        button:has(div:contains("🔴 ALERTS")) { background-color: #ff4b4b !important; color: white !important; border: none !important; }
+        button:has(div:contains("🟢 ALERTS")) { background-color: #04AA6D !important; color: white !important; border: none !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
     # --- 2. COMPACT SUMMARY BAR (Dynamic Metrics) ---
     if not filtered_df.empty:
         total = len(filtered_df)
         pending = len(filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])])
 
-        # --- DYNAMIC CATEGORY COUNTER ---
         cat_counts = filtered_df['category'].value_counts()
         cat_html = ""
         for cat_name, count in cat_counts.items():
@@ -95,8 +127,7 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            # --- SIDE-BY-SIDE DATAFRAME & BUTTONS ---
-            col_table, col_actions = st.columns([7, 2])
+            col_table, col_actions = st.columns([5, 2])
             
             with col_table:
                 event = st.dataframe(
@@ -108,6 +139,17 @@ def search_results_fragment():
                 )
             
             with col_actions:
+                # --- NEW ALERTS BUTTON (Right Side) ---
+                if num_alerts > 0:
+                    if st.button(f"🔴 ALERTS ({num_alerts})", use_container_width=True):
+                        alerts_overview_dialog(alerts_df)
+                else:
+                    if st.button("🟢 ALERTS (0)", use_container_width=True):
+                        alerts_overview_dialog(alerts_df)
+                
+                st.divider() # Visually separates the alerts button from the selection actions
+                
+                # Selection Actions
                 selected_indices = event.selection.rows
                 if selected_indices:
                     st.markdown("### ⚡ Actions")
@@ -123,7 +165,19 @@ def search_results_fragment():
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            st.markdown("### ⚡ Quick Actions")
+            # We add columns here so the Alerts button stays perfectly on the right side even in this view
+            col_hdr, col_alt = st.columns([5, 2])
+            with col_hdr:
+                st.markdown("### ⚡ Quick Actions")
+            with col_alt:
+                # --- NEW ALERTS BUTTON (Right Side) ---
+                if num_alerts > 0:
+                    if st.button(f"🔴 ALERTS ({num_alerts})", key="alt_btn_sm", use_container_width=True):
+                        alerts_overview_dialog(alerts_df)
+                else:
+                    if st.button("🟢 ALERTS (0)", key="alt_btn_sm", use_container_width=True):
+                        alerts_overview_dialog(alerts_df)
+
             for _, row in display_df.iterrows():
                 with st.container(border=True):
                     c_name, c_arr, c_poc, c_gre, c_btn = st.columns([3, 2, 2, 2, 2])
@@ -141,7 +195,6 @@ def search_results_fragment():
                     with c_btn:
                         if st.button("📂 Open DDP", key=f"btn_ddp_{row['id']}", use_container_width=True):
                             ddp_dialog(row.to_dict())
-
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
 @st.fragment
