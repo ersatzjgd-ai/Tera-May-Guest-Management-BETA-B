@@ -80,7 +80,6 @@ def search_results_fragment():
             guest_alerts = []
             if pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None"]:
                 guest_alerts.append("GRE Not Assigned")
-            # If you track room cleaning, you would add: if not row['room_cleaned']: guest_alerts.append("Room Not Cleaned")
             
             if guest_alerts:
                 alerts_list.append({"Guest": row['name'], "Alert(s)": " | ".join(guest_alerts), "POC": row['poc']})
@@ -127,7 +126,7 @@ def search_results_fragment():
             ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             
-            col_table, col_actions = st.columns([8, 2])
+            col_table, col_actions = st.columns([5, 2])
             
             with col_table:
                 event = st.dataframe(
@@ -139,7 +138,7 @@ def search_results_fragment():
                 )
             
             with col_actions:
-                # --- NEW ALERTS BUTTON (Right Side) ---
+                # --- ALERTS BUTTON (Right Side) ---
                 if num_alerts > 0:
                     if st.button(f"🔴 ALERTS ({num_alerts})", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
@@ -147,7 +146,7 @@ def search_results_fragment():
                     if st.button("🟢 ALERTS (0)", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
                 
-                st.divider() # Visually separates the alerts button from the selection actions
+                st.divider()
                 
                 # Selection Actions
                 selected_indices = event.selection.rows
@@ -165,12 +164,11 @@ def search_results_fragment():
                         
         # 🔵 SCENARIO B: PREMIUM BUTTON MODE (<= 20 Guests)
         else:
-            # We add columns here so the Alerts button stays perfectly on the right side even in this view
             col_hdr, col_alt = st.columns([5, 2])
             with col_hdr:
                 st.markdown("### ⚡ Quick Actions")
             with col_alt:
-                # --- NEW ALERTS BUTTON (Right Side) ---
+                # --- ALERTS BUTTON (Right Side) ---
                 if num_alerts > 0:
                     if st.button(f"🔴 ALERTS ({num_alerts})", key="alt_btn_sm", use_container_width=True):
                         alerts_overview_dialog(alerts_df)
@@ -180,21 +178,32 @@ def search_results_fragment():
 
             for _, row in display_df.iterrows():
                 with st.container(border=True):
-                    c_name, c_arr, c_poc, c_gre, c_btn = st.columns([3, 2, 2, 2, 2])
+                    # 5 columns for the flat "bar" layout. Name gets slightly more room.
+                    c_name, c_arr, c_poc, c_acc, c_gre = st.columns([3, 2, 2, 1, 3])
                     
-                    with c_name: st.markdown(f"**{row['name']}**")
-                    with c_arr: st.caption(f"🕒 {row['arrival_time']}")
-                    with c_poc: st.caption(f"📞 {row['poc']}")
-                    
+                    with c_name:
+                        # The guest name is now the action button
+                        if st.button(f"📂 {row['name']}", key=f"btn_name_{row['id']}", use_container_width=True):
+                            ddp_dialog(row.to_dict())
+                            
+                    with c_arr:
+                        st.write(f"🕒 {row['arrival_time']}")
+                        
+                    with c_poc:
+                        st.write(f"📞 {row['poc']}")
+                        
+                    with c_acc:
+                        acc = row['accompanying_persons']
+                        # Format cleanly as an integer if possible, default to 0
+                        acc_val = int(acc) if pd.notna(acc) and str(acc).isdigit() else (acc if pd.notna(acc) else 0)
+                        st.write(f"👥 +{acc_val}")
+                        
                     with c_gre:
                         if "🚨 Pending" in str(row['assigned_gre']):
-                            st.error("Unassigned")
+                            # Uses Streamlit's native color syntax to safely turn text red
+                            st.markdown(":red[**🚨 GRE NOT ASSIGNED**]")
                         else:
-                            st.success(f"GRE: {row['assigned_gre']}")
-                            
-                    with c_btn:
-                        if st.button("📂 Open DDP", key=f"btn_ddp_{row['id']}", use_container_width=True):
-                            ddp_dialog(row.to_dict())
+                            st.write(f"👔 {row['assigned_gre']}")
 
 # --- 3. ADMIN TOOLS FRAGMENT ---
 @st.fragment
