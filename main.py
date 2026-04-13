@@ -28,28 +28,30 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
 
-    # --- 1. HERO SEARCH SECTION ---
-    st.markdown("### 🔍 Search Directory")
+    # --- 1. PROMINENT HERO SEARCH SECTION ---
+    # Making the header massive and bold
+    st.markdown("## **🔍 GUEST DIRECTORY SEARCH**")
     
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
+    available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
     
-    # Making the Search Box more prominent (Larger Column)
-    col_search, col_poc = st.columns([4, 2])
-    with col_search: 
-        s_name = st.selectbox("👤 QUICK FIND: START TYPING GUEST NAME", options=all_guests, index=None, placeholder="Search from 4000+ records...", key="s_name_input")
-    with col_poc: 
-        s_poc = st.multiselect("📞 Filter by POC", options=all_pocs, placeholder="All POCs", key="s_poc_input")
-    
-    # Tucking away the "Maintenance" filters
-    s_cat, s_date = [], []
-    with st.expander("🛠️ More Search Filters (Category, Date Range)"):
-        f_cat, f_date = st.columns(2)
-        with f_cat:
-            available = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
-            s_cat = st.multiselect("🏷️ Category", options=available)
-        with f_date: 
-            s_date = st.date_input("📅 Arrival Range", value=[])
+    # Enclosing the search tools in a prominent border to make it the centerpiece
+    with st.container(border=True):
+        col_name, col_poc = st.columns([3, 2])
+        with col_name: 
+            # Simple placeholder, bold label
+            s_name = st.selectbox("**👤 Guest Name**", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
+        with col_poc: 
+            # Simple placeholder, bold label
+            s_poc = st.multiselect("**📞 Filter by POC**", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
+        
+        # ALL filters exposed, no more expander. Perfectly aligned underneath.
+        col_cat, col_date = st.columns([3, 2])
+        with col_cat:
+            s_cat = st.multiselect("**🏷️ Category**", options=available_cats, placeholder="Select categories...")
+        with col_date: 
+            s_date = st.date_input("**📅 Arrival Date Range**", value=[])
 
     # --- FILTERING LOGIC ---
     filtered_df = raw_df.copy()
