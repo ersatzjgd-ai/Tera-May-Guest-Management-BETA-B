@@ -7,7 +7,7 @@ from ddp_modal import ddp_dialog, batch_actions_dialog
 def fetch_all_guests():
     return conn.query("SELECT * FROM guests", ttl=0)
 
-@st.dialog("🚨 Guest Alerts Overview")
+@st.dialog("🚨 Guest Alerts Overview", width="large")
 def alerts_overview_dialog(alerts_df):
     if alerts_df.empty:
         st.success("✅ All clear! No active alerts for the current search results.")
@@ -18,7 +18,11 @@ def alerts_overview_dialog(alerts_df):
 @st.fragment
 def search_results_fragment():
     raw_df = fetch_all_guests()
-    expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 'departure_time', 'housing', 'gift_type', 'ashram_tour']
+    
+    # Expanded Defensive Column Check to include all alert triggers
+    expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 
+                'arrival_time', 'departure_time', 'housing', 'gift_type', 'ashram_tour', 
+                'room_cleaned', 'airport_pickup_sent']
     for col in expected:
         if col not in raw_df.columns: raw_df[col] = None 
     
@@ -54,13 +58,44 @@ def search_results_fragment():
     elif len(s_date) == 1: filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
     if s_unassigned: filtered_df = filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])]
 
+    # --- THE UPGRADED ALERTS ENGINE ---
     alerts_list = []
     if not filtered_df.empty:
         for _, row in filtered_df.iterrows():
             guest_alerts = []
-            if pd.isna(row['assigned_gre']) or str(row['assigned_gre']).strip() in ["", "-- Unassigned --", "None"]:
+            
+            # 1. GRE Missing
+            if pd.isna(row.get('assigned_gre')) or str(row.get('assigned_gre')).strip() in ["", "-- Unassigned --", "None"]:
                 guest_alerts.append("GRE Not Assigned")
-            if guest_alerts: alerts_list.append({"Guest": row['name'], "Alert(s)": " | ".join(guest_alerts), "POC": row['poc']})
+                
+            # 2. Arrival Date Missing
+            arr_val = row.get('arrival_time')
+            if pd.isna(arr_val) or str(arr_val).strip() in ["", "TBD", "None", "nan", "NaT"]:
+                guest_alerts.append("Missing Arrival")
+                
+            # 3. Departure Date Missing
+            dep_val = row.get('departure_time')
+            if pd.isna(dep_val) or str(dep_val).strip() in ["", "TBD", "None", "nan", "NaT"]:
+                guest_alerts.append("Missing Departure")
+                
+            # 4. Room Allocation & Cleaning Status
+            housing = str(row.get('housing', 'TBD')).strip().upper()
+            if housing in ["", "TBD", "NONE", "NAN"]:
+                guest_alerts.append("Room TBD")
+            elif not bool(row.get('room_cleaned', 0)):
+                guest_alerts.append("Room Not Cleaned")
+                
+            # 5. Airport Pickup Status
+            if not bool(row.get('airport_pickup_sent', 0)):
+                guest_alerts.append("Pickup Pending")
+                
+            # 6. Gift Status
+            gift = str(row.get('gift_type', 'Pending')).strip().title()
+            if gift in ["", "Pending", "None", "Nan"]:
+                guest_alerts.append("Gift Pending")
+
+            if guest_alerts: 
+                alerts_list.append({"Guest": row['name'], "Alert(s)": " | ".join(guest_alerts), "POC": row['poc']})
     
     alerts_df = pd.DataFrame(alerts_list)
     num_alerts = len(alerts_df)
