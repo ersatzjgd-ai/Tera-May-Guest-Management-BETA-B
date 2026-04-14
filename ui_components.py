@@ -22,7 +22,8 @@ def db_update_datetime(field, date_key, time_key, gid):
     if not d_val or not t_val:
         return 
         
-    final_dt = f"{d_val.strftime('%d/%m/%Y')} {t_val.strftime('%H:%M')}"
+    # Send a native Python datetime object to PostgreSQL
+    final_dt = datetime.datetime.combine(d_val, t_val)
     with conn.session as s:
         s.execute(text(f"UPDATE guests SET {field} = :v WHERE id = :id"), {"v": final_dt, "id": gid})
         s.commit()
@@ -50,14 +51,34 @@ def toggle_ashram_cb(k, gid):
         s.commit()
 
 
-def parse_dt(dt_str):
-    if not dt_str or pd.isna(dt_str) or str(dt_str).strip() in ["", "TBD"]:
+# Handles both legacy string format and new datetime/pandas Timestamp objects
+def parse_dt(dt_val):
+    if pd.isna(dt_val) or dt_val is None or str(dt_val).strip() in ["", "TBD", "None", "nan", "NaT"]:
         return datetime.date.today(), datetime.time(12, 0)
+    
+    # If the database returns a native datetime or pandas Timestamp object
+    if isinstance(dt_val, (datetime.datetime, pd.Timestamp)):
+        return dt_val.date(), dt_val.time()
+        
+    # Fallback for legacy text parsing
     try:
-        dt_obj = datetime.datetime.strptime(str(dt_str).strip(), "%d/%m/%Y %H:%M")
+        dt_obj = datetime.datetime.strptime(str(dt_val).strip(), "%d/%m/%Y %H:%M")
         return dt_obj.date(), dt_obj.time()
     except:
-        return datetime.date.today(), datetime.time(12, 0)
+        try:
+            # Fallback for ISO format
+            dt_obj = pd.to_datetime(dt_val).to_pydatetime()
+            return dt_obj.date(), dt_obj.time()
+        except:
+            return datetime.date.today(), datetime.time(12, 0)
+
+# Helper to format dates specifically for the WhatsApp URL
+def format_for_wa(dt_val):
+    if pd.isna(dt_val) or dt_val is None or str(dt_val).strip() in ["", "TBD", "None", "nan", "NaT"]:
+        return "TBD"
+    if isinstance(dt_val, (datetime.datetime, pd.Timestamp)):
+        return dt_val.strftime('%d/%m/%Y %H:%M')
+    return str(dt_val)
 
 
 # --- 2. DIGNITARY DETAILS PAGE UI ---
@@ -165,15 +186,15 @@ def ddp_dialog(guest_data_input):
         
         with col_l1:
             # --- ARRIVAL TIME LOGIC ---
-            arr_str = guest_data.get('arrival_time')
-            if not arr_str or str(arr_str).strip() in ["", "None", "TBD", "nan"]:
+            arr_val = guest_data.get('arrival_time')
+            if pd.isna(arr_val) or arr_val is None or str(arr_val).strip() in ["", "None", "TBD", "nan", "NaT"]:
                 st.warning("⚠️ Date of Arrival: **Not Assigned**")
                 with st.expander("➕ Assign Arrival Date & Time"):
                     c_arr1, c_arr2 = st.columns(2)
                     c_arr1.date_input("Arrival Date", value=None, key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
                     c_arr2.time_input("Arrival Time", value=None, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
             else:
-                arr_d, arr_t = parse_dt(arr_str)
+                arr_d, arr_t = parse_dt(arr_val)
                 c_arr1, c_arr2 = st.columns(2)
                 c_arr1.date_input("Arrival Date", value=arr_d, format="DD/MM/YYYY", key=f"arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
                 c_arr2.time_input("Arrival Time", value=arr_t, key=f"arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"arr_d_{gid}", f"arr_t_{gid}", gid))
@@ -181,15 +202,15 @@ def ddp_dialog(guest_data_input):
             st.divider()
 
             # --- DEPARTURE TIME LOGIC ---
-            dep_str = guest_data.get('departure_time')
-            if not dep_str or str(dep_str).strip() in ["", "None", "TBD", "nan"]:
+            dep_val = guest_data.get('departure_time')
+            if pd.isna(dep_val) or dep_val is None or str(dep_val).strip() in ["", "None", "TBD", "nan", "NaT"]:
                 st.warning("⚠️ Date of Departure: **Not Assigned**")
                 with st.expander("➕ Assign Departure Date & Time"):
                     c_dep1, c_dep2 = st.columns(2)
                     c_dep1.date_input("Departure Date", value=None, key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
                     c_dep2.time_input("Departure Time", value=None, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
             else:
-                dep_d, dep_t = parse_dt(dep_str)
+                dep_d, dep_t = parse_dt(dep_val)
                 c_dep1, c_dep2 = st.columns(2)
                 c_dep1.date_input("Departure Date", value=dep_d, format="DD/MM/YYYY", key=f"dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
                 c_dep2.time_input("Departure Time", value=dep_t, key=f"dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"dep_d_{gid}", f"dep_t_{gid}", gid))
@@ -233,8 +254,10 @@ def ddp_dialog(guest_data_input):
                         
                         clean_phone = re.sub(r'\D', '', raw_phone) 
                         
-                        arr_str = guest_data.get('arrival_time', 'TBD')
-                        dep_str = guest_data.get('departure_time', 'TBD')
+                        # Use the new helper function for clean WhatsApp text formatting
+                        arr_str = format_for_wa(guest_data.get('arrival_time'))
+                        dep_str = format_for_wa(guest_data.get('departure_time'))
+                        
                         room_str = guest_data.get('housing', 'TBD')
                         poc_str = guest_data.get('poc', 'TBD')
                         pax_str = guest_data.get('accompanying_persons', 0)
