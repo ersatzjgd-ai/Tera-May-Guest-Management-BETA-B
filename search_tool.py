@@ -17,7 +17,7 @@ def alerts_overview_dialog(alerts_df):
         st.error(f"Found {len(alerts_df)} guests requiring attention.")
         
         # Display the standard table, hiding the internal GRE column to keep it clean
-        display_df = alerts_df[['Guest', 'Alert(s)', 'POC']].copy()
+        display_df = alerts_df[['Guest', 'Alert(s)', 'GRE']].copy()
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         # --- THE NEW WHATSAPP GRE BROADCASTER ---
@@ -74,7 +74,7 @@ def alerts_overview_dialog(alerts_df):
                 raw_phone = gre_phone_map.get(gre, "")
                 clean_phone = re.sub(r'\D', '', str(raw_phone))
                 
-                wa_msg = f"🚨 *Action Required - VIP Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guests:\n\n"
+                wa_msg = f"🚨 *Action Required - Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guests:\n\n"
                 wa_msg += "\n".join(gre_msg_lines)
                 
                 with st.container(border=True):
@@ -85,7 +85,7 @@ def alerts_overview_dialog(alerts_df):
                     with col2:
                         if clean_phone:
                             wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
-                            st.link_button("💬 Send Alert Digest", wa_url, use_container_width=True)
+                            st.link_button("💬 Send Alert on Whatsapp", wa_url, use_container_width=True)
                         else:
                             st.error("No Phone # saved")
 
