@@ -5,7 +5,8 @@ import time
 from database import conn
 
 # Initialize the Cookie Manager (cached so it doesn't reload constantly)
-@st.cache_resource(experimental_allow_widgets=True)
+# FIX: Removed the deprecated 'experimental_allow_widgets=True' argument for modern Streamlit
+@st.cache_resource
 def get_manager():
     return stx.CookieManager(key="auth_manager")
 
