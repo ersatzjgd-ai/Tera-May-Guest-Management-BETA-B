@@ -79,4 +79,22 @@ def render_login():
             
             if submitted:
                 if u and p:
-                    res = conn.query("SELECT * FROM admins WHERE username = :u AND password = :p", params={"u
+                    # FIX: Broken into two shorter lines so your code editor doesn't truncate it!
+                    query_str = "SELECT * FROM admins WHERE username = :u AND password = :p"
+                    res = conn.query(query_str, params={"u": u, "p": p}, ttl=0)
+                    
+                    if not res.empty:
+                        st.session_state.logged_in = True
+                        st.session_state.user = u
+                        
+                        # If checked, set the cookie to expire in 30 days
+                        if keep_logged_in:
+                            expire_date = datetime.datetime.now() + datetime.timedelta(days=30)
+                            cookie_manager.set("admin_session", u, expires_at=expire_date)
+                            time.sleep(0.2) # Allow cookie to set before rerunning
+                        
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials.")
+                else:
+                    st.warning("Please provide both username and password.")
