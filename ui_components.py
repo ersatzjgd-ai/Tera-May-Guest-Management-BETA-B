@@ -149,10 +149,10 @@ def ddp_dialog(guest_data_input):
     </div>
     """, unsafe_allow_html=True)
 
-    st.caption("✨ *Inline Editing Enabled: Type and press Enter or click away to save instantly.*")
+    st.caption("✨Type and press Enter or click away to save instantly.*")
 
     # --- 2. TABBED NAVIGATION ---
-    t_profile, t_logistics, t_team = st.tabs(["🪪 Profile & Status", "✈️ Logistics & Times", "📞 Team & Comms"])
+    t_profile, t_logistics, t_team = st.tabs(["🪪 Profile & Status", "✈️ Logistics & Times", "📞 Team & Communications"])
 
     # --- TAB 1: PROFILE & GROUND STATUS ---
     with t_profile:
@@ -237,7 +237,7 @@ def ddp_dialog(guest_data_input):
             st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
                          key=f"gre_{gid}", on_change=update_gre_cb, args=(f"gre_{gid}", gid))
             
-            st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
+            st.info(f"**Admin:** {guest_data.get('admin_owner', 'System')}")
 
         with col_t2:
             st.markdown("#### 🏨 Housing Support")
@@ -261,10 +261,10 @@ def ddp_dialog(guest_data_input):
                         room_str = guest_data.get('housing', 'TBD')
                         poc_str = guest_data.get('poc', 'TBD')
                         pax_str = guest_data.get('accompanying_persons', 0)
-                        gift_str = guest_data.get('gift_type', 'Pending')
+                        gift_str = guest_data.get('gift_type', 'TBD')
                         ash_str = "Yes" if guest_data.get('ashram_tour') else "No"
                         
-                        wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
+                        wa_msg = f"🛎️ *Guest Assignment*\n\nHello {current_gre},\nYou are the GRE for the following guest, here are their details:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
                         
                         wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
                         st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
