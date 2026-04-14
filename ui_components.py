@@ -83,8 +83,15 @@ def ddp_dialog(guest_data_input):
     pax_val = int(pax) if pd.notna(pax) and str(pax).isdigit() else (pax if pd.notna(pax) else 0)
 
     # --- 1. CLEAN HTML PROFILE HEADER ---
-    speaker_badge = f'<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>' if speaker == 'Speaker' else ''
+    # Constructing badges list to avoid empty string artifacts in HTML
+    badges = []
+    badges.append(f'<span class="ddp-badge">🏷️ {cat}</span>')
+    if speaker == 'Speaker':
+        badges.append('<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>')
+    badges.append(f'<span class="ddp-badge">👥 +{pax_val} Accompanying</span>')
     
+    badges_html = "".join(badges)
+
     st.markdown(f"""
     <style>
     .ddp-header {{ 
@@ -117,11 +124,7 @@ def ddp_dialog(guest_data_input):
     </style>
     <div class="ddp-header">
         <div class="ddp-title">{name}</div>
-        <div class="ddp-badges-row">
-            <span class="ddp-badge">🏷️ {cat}</span>
-            {speaker_badge}
-            <span class="ddp-badge">👥 +{pax_val} Accompanying</span>
-        </div>
+        <div class="ddp-badges-row">{badges_html}</div>
     </div>
     """, unsafe_allow_html=True)
 
