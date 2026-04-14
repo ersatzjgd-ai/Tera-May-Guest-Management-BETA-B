@@ -19,7 +19,9 @@ def alerts_overview_dialog(alerts_df):
     st.error(f"Found {len(alerts_df)} guests requiring attention.")
     
     # Display the standard table, hiding the internal GRE column to keep it clean
-    display_df = alerts_df[['Guest', 'Alert(s)', 'POC']].copy()
+    # Display the standard table, dynamically hiding the internal GRE column
+    display_cols = [col for col in alerts_df.columns if col != 'GRE']
+    display_df = alerts_df[display_cols].copy()
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # --- THE NEW WHATSAPP GRE BROADCASTER ---
