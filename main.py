@@ -10,7 +10,7 @@ def main():
     if "logged_in" not in st.session_state: st.session_state.logged_in = False
 
     st.sidebar.title("🛂 Event Control")
-    mode = st.sidebar.radio("Navigate to:", ["Public Search", "Staff Portal (GRE)", "Admin Portal"])
+    mode = st.sidebar.radio("Navigate to:", ["Public Search", "GRE Portal", "Admin Portal"])
 
     if mode == "General Guest Search":
         st.title("🛂 Guest Inquiry")
@@ -19,7 +19,7 @@ def main():
             df = conn.query("SELECT name, arrival_time, departure_time, housing FROM guests WHERE name ILIKE :n", params={"n": f"%{search}%"}, ttl=0)
             st.dataframe(df, use_container_width=True)
 
-    elif mode == "GRE Portal)":
+    elif mode == "GRE Portal":
         st.title("🛎️ GRE Portal)")
         gre_name = st.text_input("Enter GRE Name")
         if gre_name:
