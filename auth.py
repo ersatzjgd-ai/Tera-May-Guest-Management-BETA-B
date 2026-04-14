@@ -5,7 +5,6 @@ import time
 from database import conn
 
 # Initialize the Cookie Manager (cached so it doesn't reload constantly)
-# FIX: Removed the deprecated 'experimental_allow_widgets=True' argument for modern Streamlit
 @st.cache_resource
 def get_manager():
     return stx.CookieManager(key="auth_manager")
@@ -36,35 +35,29 @@ def logout():
 def render_login():
     """Renders the Enterprise-Grade Login UI."""
     
-    # Custom CSS for the beautiful floating card UI
+    # Enterprise Minimalist CSS
+    # We target the actual Streamlit form container here so it renders flawlessly
     st.markdown("""
     <style>
-    .login-card {
-        background-color: #ffffff;
-        padding: 40px;
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-        border: 1px solid #e5e7eb;
-        text-align: center;
-        margin-top: 5vh;
-    }
-    .login-header {
-        font-size: 32px;
-        font-weight: 800;
-        color: #111827;
-        margin-bottom: 8px;
-        letter-spacing: -0.02em;
-    }
-    .login-sub {
-        color: #6b7280;
-        font-size: 15px;
-        margin-bottom: 32px;
-    }
-    /* Hide the default Streamlit Form border to blend perfectly with our card */
     div[data-testid="stForm"] {
-        border: none !important;
-        padding: 0 !important;
-        background-color: transparent !important;
+        background-color: #ffffff !important;
+        padding: 40px 35px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04) !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-top: 8vh !important;
+    }
+    
+    /* Clean, professional title */
+    .enterprise-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: left;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 16px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -72,37 +65,18 @@ def render_login():
     # Center the login card using columns
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        with st.container():
-            st.markdown('<div class="login-card">', unsafe_allow_html=True)
-            st.markdown('<div class="login-header">🛡️ Admin Access</div>', unsafe_allow_html=True)
-            st.markdown('<div class="login-sub">Secure Ground Operations Portal</div>', unsafe_allow_html=True)
+        with st.form("enterprise_login", clear_on_submit=False):
+            st.markdown('<div class="enterprise-title">System Sign-In</div>', unsafe_allow_html=True)
             
-            with st.form("enterprise_login", clear_on_submit=False):
-                u = st.text_input("Username", placeholder="Enter your admin username")
-                p = st.text_input("Password", type="password", placeholder="••••••••")
-                
-                keep_logged_in = st.checkbox("Keep me logged in for 30 days", value=True)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                submitted = st.form_submit_button("Authenticate", use_container_width=True, type="primary")
-                
-                if submitted:
-                    if u and p:
-                        res = conn.query("SELECT * FROM admins WHERE username = :u AND password = :p", params={"u": u, "p": p}, ttl=0)
-                        if not res.empty:
-                            st.session_state.logged_in = True
-                            st.session_state.user = u
-                            
-                            # If checked, set the cookie to expire in 30 days
-                            if keep_logged_in:
-                                expire_date = datetime.datetime.now() + datetime.timedelta(days=30)
-                                cookie_manager.set("admin_session", u, expires_at=expire_date)
-                                time.sleep(0.2) # Allow cookie to set before rerunning
-                            
-                            st.rerun()
-                        else:
-                            st.error("❌ Invalid credentials. Please try again.")
-                    else:
-                        st.warning("⚠️ Please provide both username and password.")
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+            keep_logged_in = st.checkbox("Keep me logged in", value=True)
+            
+            st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Sign In", use_container_width=True, type="primary")
+            
+            if submitted:
+                if u and p:
+                    res = conn.query("SELECT * FROM admins WHERE username = :u AND password = :p", params={"u
