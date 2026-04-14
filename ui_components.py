@@ -136,11 +136,8 @@ def ddp_dialog(guest_data_input):
     pinned_html = ""
     if is_pinned and clean_remarks.strip():
         html_remarks = clean_remarks.replace('\n', '<br>')
-        pinned_html = f"""
-        <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 15px; border-radius: 4px; color: #991b1b; font-size: 14px;">
-            <strong>📌 Pinned Note:</strong><br>{html_remarks}
-        </div>
-        """
+        # FIX: Flattened into a single line so Streamlit Markdown doesn't parse the indentation as a code block
+        pinned_html = f"<div style='background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 15px; border-radius: 4px; color: #991b1b; font-size: 14px;'><strong>📌 Pinned Note:</strong><br>{html_remarks}</div>"
 
     st.markdown(f"""
     <style>
