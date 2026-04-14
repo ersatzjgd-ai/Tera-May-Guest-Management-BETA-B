@@ -13,81 +13,116 @@ def fetch_all_guests():
 def alerts_overview_dialog(alerts_df):
     if alerts_df.empty:
         st.success("✅ All clear! No active alerts for the current search results.")
-    else:
-        st.error(f"Found {len(alerts_df)} guests requiring attention.")
+        return
         
-        # Display the standard table, hiding the internal GRE column to keep it clean
-        display_df = alerts_df[['Guest', 'Alert(s)', 'GRE']].copy()
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.error(f"Found {len(alerts_df)} guests requiring attention.")
+    
+    # Display the standard table, hiding the internal GRE column to keep it clean
+    display_df = alerts_df[['Guest', 'Alert(s)', 'POC']].copy()
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-        # --- THE NEW WHATSAPP GRE BROADCASTER ---
-        st.divider()
-        st.markdown("#### 💬 Notify GREs via WhatsApp")
-        
-        # Extract all unique individual alerts present in the current dataframe
-        all_possible_alerts = set()
-        for alert_str in alerts_df['Alert(s)']:
-            all_possible_alerts.update(alert_str.split(" | "))
-        
-        # Filter out "GRE Not Assigned" since we can't message a non-existent GRE
-        all_possible_alerts.discard("GRE Not Assigned")
-        
-        if not all_possible_alerts:
-            st.info("There are no actionable alerts assigned to specific GREs right now.")
-            return
-        
-        st.write("Select which alerts you want to broadcast to the assigned GREs:")
-        selected_alert_types = st.multiselect(
-            "Filter Alerts:",
-            options=sorted(list(all_possible_alerts)),
-            default=sorted(list(all_possible_alerts)),
-            label_visibility="collapsed"
-        )
-        
-        if not selected_alert_types:
-            st.warning("⚠️ Please select at least one alert type to generate messages.")
-            return
-        
-        # Group the alerts by the assigned GRE to send consolidated digest messages
-        valid_gres_df = alerts_df[alerts_df['GRE'].notna() & (alerts_df['GRE'] != "") & (alerts_df['GRE'] != "-- Unassigned --") & (alerts_df['GRE'] != "None")]
-        
-        if valid_gres_df.empty:
-            st.info("All current alerts belong to guests without a GRE. Assign a GRE first to notify them.")
-            return
+    # --- THE NEW WHATSAPP GRE BROADCASTER ---
+    st.divider()
+    st.markdown("#### 💬 Notify GREs via WhatsApp")
+    
+    # Extract all unique individual alerts present in the current dataframe
+    all_possible_alerts = set()
+    for alert_str in alerts_df['Alert(s)']:
+        all_possible_alerts.update(alert_str.split(" | "))
+    
+    # Filter out "GRE Not Assigned" since we can't message a non-existent GRE
+    all_possible_alerts.discard("GRE Not Assigned")
+    
+    if not all_possible_alerts:
+        st.info("There are no actionable alerts assigned to specific GREs right now.")
+        return
 
-        # Fetch all GRE phones once to avoid querying in a loop
-        gre_df = conn.query("SELECT gre_name, gre_phone FROM gres", ttl=0)
-        gre_phone_map = dict(zip(gre_df['gre_name'], gre_df['gre_phone'])) if not gre_df.empty else {}
+    # MASTER SEQUENCE: Forces consistent order no matter the set randomization
+    MASTER_ALERT_ORDER = [
+        "Missing Arrival",
+        "Missing Departure",
+        "Room TBD",
+        "Room Not Cleaned",
+        "Pickup Pending",
+        "Gift Pending"
+    ]
+    
+    # Sort for consistent UI
+    sorted_alerts = sorted(list(all_possible_alerts), key=lambda x: MASTER_ALERT_ORDER.index(x) if x in MASTER_ALERT_ORDER else 99)
+    
+    st.write("Select which alerts you want to broadcast to the assigned GREs:")
+    selected_alert_types = st.multiselect(
+        "Filter Alerts:",
+        options=sorted_alerts,
+        default=sorted_alerts,
+        label_visibility="collapsed"
+    )
+    
+    if not selected_alert_types:
+        st.warning("⚠️ Please select at least one alert type to generate messages.")
+        return
+    
+    # FIX 1: Strict NaN filtering. Drops literal strings, empty strings, and pandas <NA> objects.
+    valid_gres_df = alerts_df.copy()
+    valid_gres_df['GRE'] = valid_gres_df['GRE'].astype(str).str.strip()
+    valid_gres_df = valid_gres_df[~valid_gres_df['GRE'].str.lower().isin(["", "nan", "none", "-- unassigned --", "<na>"])]
+    
+    if valid_gres_df.empty:
+        st.info("All current alerts belong to guests without a GRE. Assign a GRE first to notify them.")
+        return
 
-        # Build the UI list of GREs to notify
-        for gre, group in valid_gres_df.groupby('GRE'):
-            gre_msg_lines = []
+    # FIX 2: Normalized GRE Phone Map (Whitespace and Case Insensitive for Veena)
+    gre_df = conn.query("SELECT gre_name, gre_phone FROM gres", ttl=0)
+    gre_phone_map = {}
+    if not gre_df.empty:
+        for _, r in gre_df.iterrows():
+            clean_name = str(r['gre_name']).strip().lower()
+            gre_phone_map[clean_name] = str(r['gre_phone'])
+
+    # SUGGESTION A: Emoji Mapping System
+    ALERT_EMOJIS = {
+        "Missing Arrival": "🛬 Missing Arrival",
+        "Missing Departure": "🛫 Missing Departure",
+        "Room TBD": "🏨 Room TBD",
+        "Room Not Cleaned": "🧹 Room Not Cleaned",
+        "Pickup Pending": "🚗 Pickup Pending",
+        "Gift Pending": "🎁 Gift Pending"
+    }
+
+    # Build the UI list of GREs to notify
+    for gre, group in valid_gres_df.groupby('GRE'):
+        gre_msg_lines = []
+        
+        for _, row in group.iterrows():
+            # Filter and FIX 3: Enforce chronological Master Order on the guest's alerts
+            raw_guest_alerts = [a for a in row['Alert(s)'].split(" | ") if a in selected_alert_types]
+            sorted_guest_alerts = sorted(raw_guest_alerts, key=lambda x: MASTER_ALERT_ORDER.index(x) if x in MASTER_ALERT_ORDER else 99)
             
-            # Build the custom message for this specific GRE based on the selected filters
-            for _, row in group.iterrows():
-                guest_alerts = [a for a in row['Alert(s)'].split(" | ") if a in selected_alert_types]
-                if guest_alerts:
-                    gre_msg_lines.append(f"👤 *{row['Guest']}:* {', '.join(guest_alerts)}")
+            if sorted_guest_alerts:
+                # Apply Emojis to the final list
+                emojified_alerts = [ALERT_EMOJIS.get(a, a) for a in sorted_guest_alerts]
+                gre_msg_lines.append(f"👤 *{row['Guest']}:* {' | '.join(emojified_alerts)}")
+        
+        # If the GRE has actionable items after filtering, show their button
+        if gre_msg_lines:
+            # Match against the normalized map (prevents " Veena" from failing)
+            raw_phone = gre_phone_map.get(gre.lower(), "")
+            clean_phone = re.sub(r'\D', '', str(raw_phone))
             
-            # If the GRE has actionable items after filtering, show their button
-            if gre_msg_lines:
-                raw_phone = gre_phone_map.get(gre, "")
-                clean_phone = re.sub(r'\D', '', str(raw_phone))
-                
-                wa_msg = f"🚨 *Action Required - Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guests:\n\n"
-                wa_msg += "\n".join(gre_msg_lines)
-                
-                with st.container(border=True):
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.markdown(f"**{gre}**")
-                        st.caption(f"{len(gre_msg_lines)} guests need attention based on your filters.")
-                    with col2:
-                        if clean_phone:
-                            wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
-                            st.link_button("💬 Send Alert on Whatsapp", wa_url, use_container_width=True)
-                        else:
-                            st.error("No Phone # saved")
+            wa_msg = f"🚨 *Action Required - VIP Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guests:\n\n"
+            wa_msg += "\n".join(gre_msg_lines)
+            
+            with st.container(border=True):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**{gre}**")
+                    st.caption(f"{len(gre_msg_lines)} guests need attention based on your filters.")
+                with col2:
+                    if clean_phone:
+                        wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
+                        st.link_button("💬 Send Alert Digest", wa_url, use_container_width=True)
+                    else:
+                        st.error("No Phone # saved")
 
 
 @st.fragment
