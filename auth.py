@@ -2,7 +2,6 @@ import streamlit as st
 import extra_streamlit_components as stx
 import datetime
 import time
-import os
 from database import conn
 
 # Initialize the Cookie Manager (cached so it doesn't reload constantly)
@@ -34,9 +33,9 @@ def logout():
     st.rerun()
 
 def render_login():
-    """Renders the Enterprise-Grade Login UI with Logo."""
+    """Renders the Enterprise-Grade Login UI."""
     
-    # Enterprise Minimalist CSS with Image Centering
+    # Enterprise Minimalist CSS
     st.markdown("""
     <style>
     div[data-testid="stForm"] {
@@ -45,7 +44,7 @@ def render_login():
         border-radius: 8px !important;
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04) !important;
         border: 1px solid #e2e8f0 !important;
-        margin-top: 6vh !important;
+        margin-top: 8vh !important;
     }
     
     /* Clean, professional title */
@@ -55,16 +54,9 @@ def render_login():
         color: #0f172a;
         margin-bottom: 24px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        text-align: center; /* Centered to match the logo */
+        text-align: center;
         border-bottom: 1px solid #f1f5f9;
         padding-bottom: 16px;
-    }
-
-    /* Force the Streamlit image element to perfectly center inside the form */
-    [data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -73,14 +65,6 @@ def render_login():
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         with st.form("enterprise_login", clear_on_submit=False):
-            
-            # --- RENDER LOGO ---
-            # We use try/except so the app doesn't crash if the logo file is missing
-            try:
-                st.image("logo.png", width=140)
-            except Exception:
-                pass 
-                
             st.markdown('<div class="enterprise-title">System Sign-In</div>', unsafe_allow_html=True)
             
             u = st.text_input("Username")
