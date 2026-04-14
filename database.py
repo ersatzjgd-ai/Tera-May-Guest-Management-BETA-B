@@ -16,8 +16,8 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 admin_owner TEXT,
-                arrival_time TEXT,
-                departure_time TEXT,
+                arrival_time TIMESTAMP,
+                departure_time TIMESTAMP,
                 airport_pickup_sent INTEGER DEFAULT 0,
                 stay_location TEXT,
                 room_cleaned INTEGER DEFAULT 0,
@@ -38,9 +38,35 @@ def init_db():
         except Exception:
             s.rollback()
 
+    # --- MIGRATE DATES FROM TEXT TO TIMESTAMP ---
+    with conn.session as s:
+        try:
+            # Safely cast arrival_time from TEXT to TIMESTAMP
+            s.execute(text("""
+                ALTER TABLE guests 
+                ALTER COLUMN arrival_time TYPE TIMESTAMP 
+                USING CASE 
+                    WHEN arrival_time IS NULL OR TRIM(arrival_time) IN ('', 'TBD', 'None', 'nan') THEN NULL 
+                    ELSE TO_TIMESTAMP(arrival_time, 'DD/MM/YYYY HH24:MI') 
+                END;
+            """))
+            # Safely cast departure_time from TEXT to TIMESTAMP
+            s.execute(text("""
+                ALTER TABLE guests 
+                ALTER COLUMN departure_time TYPE TIMESTAMP 
+                USING CASE 
+                    WHEN departure_time IS NULL OR TRIM(departure_time) IN ('', 'TBD', 'None', 'nan') THEN NULL 
+                    ELSE TO_TIMESTAMP(departure_time, 'DD/MM/YYYY HH24:MI') 
+                END;
+            """))
+            s.commit()
+        except Exception:
+            # If already converted or syntax fails, silently rollback to prevent crashing
+            s.rollback()
+
     # --- ISOLATED TRANSACTIONS WITH ROLLBACKS ---
     columns_to_add = [
-        ("departure_time", "TEXT"),
+        ("departure_time", "TIMESTAMP"),
         ("poc", "TEXT"),
         ("assigned_gre", "TEXT"),
         ("category", "TEXT"),
