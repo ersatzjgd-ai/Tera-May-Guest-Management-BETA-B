@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 import re
+import datetime
 from database import conn
 from ddp_modal import ddp_dialog, batch_actions_dialog
 
@@ -109,7 +110,7 @@ def alerts_overview_dialog(alerts_df):
             raw_phone = gre_phone_map.get(gre.lower(), "")
             clean_phone = re.sub(r'\D', '', str(raw_phone))
             
-            wa_msg = f"🚨 *Action Required - VIP Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guests:\n\n"
+            wa_msg = f"🚨 *Action Required - Guest Alerts*\n\nHello {gre},\nPlease address the following pending items for your assigned guest/s:\n\n"
             wa_msg += "\n".join(gre_msg_lines)
             
             with st.container(border=True):
@@ -120,7 +121,7 @@ def alerts_overview_dialog(alerts_df):
                 with col2:
                     if clean_phone:
                         wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
-                        st.link_button("💬 Send Alert Digest", wa_url, use_container_width=True)
+                        st.link_button("💬 Send Alert on Whatsapp", wa_url, use_container_width=True)
                     else:
                         st.error("No Phone # saved")
 
@@ -158,15 +159,25 @@ def search_results_fragment():
         with col_date: s_date = st.date_input("**📅 Arrival Date Range**", value=[])
         with col_unassigned:
             st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True)
-            s_unassigned = st.checkbox("**🚨 Show ONLY Unassigned GRE**")
+            s_unassigned = st.checkbox("**🚨 Unassigned GRE**")
 
     filtered_df = raw_df.copy()
-    if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
-    if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
-    if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
-    if len(s_date) == 2: filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= s_date[0]) & (filtered_df['arrival_dt'].dt.date <= s_date[1])]
-    elif len(s_date) == 1: filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
-    if s_unassigned: filtered_df = filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])]
+    
+    # --- NEW LOGIC: Default View vs Active Filters ---
+    filters_engaged = any([s_name, s_poc, s_cat, s_date, s_unassigned])
+    
+    if filters_engaged:
+        if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
+        if s_poc: filtered_df = filtered_df[filtered_df['poc'].isin(s_poc)]
+        if s_cat: filtered_df = filtered_df[filtered_df['category'].isin(s_cat)]
+        if len(s_date) == 2: filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= s_date[0]) & (filtered_df['arrival_dt'].dt.date <= s_date[1])]
+        elif len(s_date) == 1: filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
+        if s_unassigned: filtered_df = filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])]
+    else:
+        # Default View: Only show guests arriving today
+        today = datetime.date.today()
+        filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == today]
+        st.caption(f"📅 Guests arriving today ({today.strftime('%b %d, %Y')}). Engage any filter above to search all records.*")
 
     # --- THE UPGRADED ALERTS ENGINE ---
     alerts_list = []
@@ -209,7 +220,7 @@ def search_results_fragment():
                 alerts_list.append({
                     "Guest": row['name'], 
                     "Alert(s)": " | ".join(guest_alerts), 
-                    "POC": row['poc'],
+                
                     "GRE": str(row.get('assigned_gre')).strip()
                 })
     
@@ -259,7 +270,7 @@ def search_results_fragment():
                     st.markdown("### ⚡ Actions")
                     selected_ids = [filtered_df.iloc[i]['id'] for i in selected_indices]
                     if len(selected_ids) == 1:
-                        if st.button("📂 Open Guest Details", type="primary", use_container_width=True): ddp_dialog(filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict())
+                        if st.button("📂 Open DDP", type="primary", use_container_width=True): ddp_dialog(filtered_df[filtered_df['id'] == selected_ids[0]].iloc[0].to_dict())
                     elif len(selected_ids) > 1:
                         if st.button(f"⚙️ Apply Batch Actions ({len(selected_ids)})", type="primary", use_container_width=True): batch_actions_dialog(selected_ids)
                 else:
