@@ -25,7 +25,20 @@ def init_db():
                 poc TEXT,
                 housing TEXT DEFAULT 'TBD',
                 gift_type TEXT DEFAULT 'Pending',
-                ashram_tour INTEGER DEFAULT 0
+                ashram_tour INTEGER DEFAULT 0,
+                remarks TEXT DEFAULT '',
+                remarks_pinned INTEGER DEFAULT 0
+            );
+        '''))
+        
+        # --- NEW TABLE FOR AUDIT LOG / TIMELINE ---
+        s.execute(text('''
+            CREATE TABLE IF NOT EXISTS guest_notes (
+                id SERIAL PRIMARY KEY,
+                guest_id INTEGER,
+                admin_name TEXT,
+                note_text TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         '''))
         s.commit() 
@@ -74,7 +87,9 @@ def init_db():
         ("accompanying_persons", "INTEGER DEFAULT 0"),
         ("housing", "TEXT DEFAULT 'TBD'"),
         ("gift_type", "TEXT DEFAULT 'Pending'"),
-        ("ashram_tour", "INTEGER DEFAULT 0")
+        ("ashram_tour", "INTEGER DEFAULT 0"),
+        ("remarks", "TEXT DEFAULT ''"),
+        ("remarks_pinned", "INTEGER DEFAULT 0")
     ]
     
     for col_name, col_type in columns_to_add:
