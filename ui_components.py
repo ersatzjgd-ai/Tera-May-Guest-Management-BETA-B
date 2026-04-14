@@ -50,6 +50,21 @@ def toggle_ashram_cb(k, gid):
         s.execute(text("UPDATE guests SET ashram_tour = :a WHERE id = :id"), {"a": int(st.session_state[k]), "id": gid})
         s.commit()
 
+# --- NEW REMARKS CALLBACKS ---
+def toggle_pin_cb(k, gid):
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET remarks_pinned = :p WHERE id = :id"), {"p": int(st.session_state[k]), "id": gid})
+        s.commit()
+
+def add_guest_note_cb(k, gid, admin_name):
+    new_note = st.session_state[k]
+    if new_note and new_note.strip():
+        with conn.session as s:
+            s.execute(text("INSERT INTO guest_notes (guest_id, admin_name, note_text, timestamp) VALUES (:gid, :admin, :note, :dt)"),
+                      {"gid": gid, "admin": admin_name, "note": new_note.strip(), "dt": datetime.datetime.now()})
+            s.commit()
+        st.session_state[k] = "" # Clear input field silently after saving
+
 
 # Handles both legacy string format and new datetime/pandas Timestamp objects
 def parse_dt(dt_val):
@@ -113,6 +128,20 @@ def ddp_dialog(guest_data_input):
     
     badges_html = "".join(badges)
 
+    # --- PINNED REMARKS LOGIC ---
+    is_pinned = bool(guest_data.get('remarks_pinned', 0))
+    raw_remarks = guest_data.get('remarks', '')
+    clean_remarks = '' if pd.isna(raw_remarks) or raw_remarks is None else str(raw_remarks)
+    
+    pinned_html = ""
+    if is_pinned and clean_remarks.strip():
+        html_remarks = clean_remarks.replace('\n', '<br>')
+        pinned_html = f"""
+        <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 15px; border-radius: 4px; color: #991b1b; font-size: 14px;">
+            <strong>📌 Pinned Note:</strong><br>{html_remarks}
+        </div>
+        """
+
     st.markdown(f"""
     <style>
     .ddp-header {{ 
@@ -146,13 +175,14 @@ def ddp_dialog(guest_data_input):
     <div class="ddp-header">
         <div class="ddp-title">{name}</div>
         <div class="ddp-badges-row">{badges_html}</div>
+        {pinned_html}
     </div>
     """, unsafe_allow_html=True)
 
-    st.caption("✨Type and press Enter or click away to save instantly.*")
+    st.caption("✨ *Inline Editing Enabled: Type and press Enter or click away to save instantly.*")
 
     # --- 2. TABBED NAVIGATION ---
-    t_profile, t_logistics, t_team = st.tabs(["🪪 Profile & Status", "✈️ Logistics & Times", "📞 Team & Communications"])
+    t_profile, t_logistics, t_team = st.tabs(["🪪 Profile & Status", "✈️ Logistics & Times", "📞 Team & Comms"])
 
     # --- TAB 1: PROFILE & GROUND STATUS ---
     with t_profile:
@@ -237,7 +267,7 @@ def ddp_dialog(guest_data_input):
             st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre),
                          key=f"gre_{gid}", on_change=update_gre_cb, args=(f"gre_{gid}", gid))
             
-            st.info(f"**Admin:** {guest_data.get('admin_owner', 'System')}")
+            st.info(f"**Admin Owner:** {guest_data.get('admin_owner', 'System')}")
 
         with col_t2:
             st.markdown("#### 🏨 Housing Support")
@@ -261,10 +291,16 @@ def ddp_dialog(guest_data_input):
                         room_str = guest_data.get('housing', 'TBD')
                         poc_str = guest_data.get('poc', 'TBD')
                         pax_str = guest_data.get('accompanying_persons', 0)
-                        gift_str = guest_data.get('gift_type', 'TBD')
+                        gift_str = guest_data.get('gift_type', 'Pending')
                         ash_str = "Yes" if guest_data.get('ashram_tour') else "No"
                         
-                        wa_msg = f"🛎️ *Guest Assignment*\n\nHello {current_gre},\nYou are the GRE for the following guest, here are their details:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}\n\nPlease ensure everything is ready."
+                        wa_msg = f"🛎️ *New VIP Assignment*\n\nHello {current_gre},\nYou have been assigned as the GRE for the following guest:\n\n👤 *Guest:* {guest_data['name']} (+{pax_str} Pax)\n✈️ *Arrival:* {arr_str}\n🛫 *Departure:* {dep_str}\n🏨 *Room Allotment:* {room_str}\n📞 *Guest POC:* {poc_str}\n🎁 *Gift Status:* {gift_str}\n🛕 *Ashram Tour:* {ash_str}"
+                        
+                        # --- WHATSAPP REMARKS INTEGRATION ---
+                        if clean_remarks.strip():
+                            wa_msg += f"\n\n📝 *Notes:*\n{clean_remarks.strip()}"
+                            
+                        wa_msg += "\n\nPlease ensure everything is ready."
                         
                         wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
                         st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
@@ -272,6 +308,45 @@ def ddp_dialog(guest_data_input):
                         st.warning(f"⚠️ No phone number saved for {current_gre}.")
                 else:
                     st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
+
+        # --- THE NEW UPGRADED REMARKS UI ---
+        st.divider()
+        col_r1, col_r2 = st.columns([1, 1])
+        
+        with col_r1:
+            st.markdown("#### 📝 Primary Remarks")
+            st.text_area(
+                "Main instructions or alerts for the team.", 
+                value=clean_remarks, 
+                key=f"rem_{gid}", 
+                on_change=db_update, 
+                args=("remarks", f"rem_{gid}", gid),
+                height=150,
+                placeholder="Type important notes here. Click outside the box to save."
+            )
+            st.checkbox("📌 Pin to Profile Header", value=is_pinned, key=f"pin_{gid}", on_change=toggle_pin_cb, args=(f"pin_{gid}", gid))
+            
+        with col_r2:
+            st.markdown("#### 💬 Audit Log & Updates")
+            
+            # Fetch rolling notes for this specific guest
+            notes_df = conn.query("SELECT admin_name, note_text, timestamp FROM guest_notes WHERE guest_id = :gid ORDER BY timestamp ASC", params={"gid": gid}, ttl=0)
+            
+            # Create a scrolling window so it doesn't take up too much vertical space
+            chat_container = st.container(height=150)
+            with chat_container:
+                if notes_df.empty:
+                    st.caption("No timeline updates yet.")
+                else:
+                    for _, row in notes_df.iterrows():
+                        dt_str = row['timestamp'].strftime('%d %b, %H:%M') if pd.notna(row['timestamp']) else ''
+                        st.markdown(f"<span style='font-size: 13px;'>**{row['admin_name']}** <span style='color: #888;'>({dt_str})</span><br>{row['note_text']}</span>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin: 6px 0; border-color: #eee;'>", unsafe_allow_html=True)
+            
+            # Grab the current admin's name dynamically from session state (defaults to "System")
+            current_admin = st.session_state.get('user', 'System')
+            st.text_input("Add quick update to log...", key=f"new_note_{gid}", on_change=add_guest_note_cb, args=(f"new_note_{gid}", gid, current_admin))
+
 
 # --- 3. BATCH ACTIONS DIALOG ---
 @st.dialog("🛠️ Batch Actions", width="medium")
