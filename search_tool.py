@@ -17,11 +17,8 @@ def alerts_overview_dialog(alerts_df):
         return
         
     st.error(f"Found {len(alerts_df)} guests requiring attention.")
-    
-    # Display the full table dynamically, which safely includes the GRE column
-    st.dataframe(alerts_df, use_container_width=True, hide_index=True)
 
-    # Fetch GRE phones for both individual and group messaging
+    # Fetch GRE phones for the WhatsApp logic
     gre_data = conn.query("SELECT gre_name, gre_phone FROM gres", ttl=0)
     gre_phone_map = {}
     if not gre_data.empty:
@@ -37,33 +34,42 @@ def alerts_overview_dialog(alerts_df):
         "Pickup Pending": "🚗 Pickup Pending", "Gift Pending": "🎁 Gift Pending"
     }
 
-    tab_individual, tab_group = st.tabs(["👤 Individual Guest Update", "📊 GRE Digest (Bulk)"])
+    tab_individual, tab_group = st.tabs(["👤 Guest Action Center", "📊 GRE Digest (Bulk)"])
 
     with tab_individual:
-        st.markdown("##### Send update for a specific guest")
+        st.markdown("##### Immediate updates for individual guests")
+        # Ensure we have a clean GRE column for filtering
         valid_indiv = alerts_df.copy()
         valid_indiv['GRE_clean'] = valid_indiv['GRE'].astype(str).str.strip().str.lower()
-        valid_indiv = valid_indiv[~valid_indiv['GRE_clean'].isin(["", "nan", "none", "-- unassigned --"])]
 
-        if valid_indiv.empty:
-            st.info("No guests with alerts currently have a GRE assigned.")
-        else:
-            for _, row in valid_indiv.iterrows():
-                with st.container(border=True):
-                    c1, c2 = st.columns([3, 1])
-                    with c1:
-                        st.markdown(f"**{row['Guest']}** (GRE: {row['GRE']})")
-                        st.caption(f"Alerts: {row['Alert(s)']}")
-                    with c2:
-                        raw_phone = gre_phone_map.get(row['GRE_clean'], "")
-                        clean_phone = re.sub(r'\D', '', str(raw_phone))
-                        if clean_phone:
-                            emojified = [ALERT_EMOJIS.get(a.strip(), a.strip()) for a in row['Alert(s)'].split("|")]
-                            indiv_msg = f"🚨 *Guest Update*\n\nHello {row['GRE']},\nRegarding guest *{row['Guest']}*, please check:\n\n" + "\n".join([f"- {e}" for e in emojified])
-                            wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(indiv_msg)}"
-                            st.link_button("💬 Send", wa_url, use_container_width=True)
-                        else:
-                            st.error("No Phone")
+        # Sort by Guest Name for easy finding
+        valid_indiv = valid_indiv.sort_values('Guest')
+
+        for _, row in valid_indiv.iterrows():
+            with st.container(border=True):
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.markdown(f"**{row['Guest']}**")
+                    # Display alerts as clear, colored tags
+                    alert_items = row['Alert(s)'].split(" | ")
+                    formatted_alerts = "  •  ".join([f":orange[{a}]" for a in alert_items])
+                    st.markdown(formatted_alerts)
+                    
+                    if row['GRE_clean'] in ["", "nan", "none", "-- unassigned --"]:
+                        st.caption("⚠️ :red[No GRE Assigned]")
+                    else:
+                        st.caption(f"Assigned GRE: **{row['GRE']}**")
+
+                with c2:
+                    raw_phone = gre_phone_map.get(row['GRE_clean'], "")
+                    clean_phone = re.sub(r'\D', '', str(raw_phone))
+                    if clean_phone:
+                        emojified = [ALERT_EMOJIS.get(a.strip(), a.strip()) for a in alert_items]
+                        indiv_msg = f"🚨 *Guest Update*\n\nHello {row['GRE']},\nRegarding guest *{row['Guest']}*, please check:\n\n" + "\n".join([f"- {e}" for e in emojified])
+                        wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(indiv_msg)}"
+                        st.link_button("💬 Send Alert on Whatsapp", wa_url, use_container_width=True)
+                    else:
+                        st.button("🚫 No Phone", disabled=True, use_container_width=True)
 
     with tab_group:
         st.markdown("##### Notify GREs of all their assigned alerts")
