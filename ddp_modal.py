@@ -143,10 +143,10 @@ def ddp_dialog(guest_data_input):
                         
                         wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(wa_msg)}"
                         st.link_button("💬 Send WhatsApp Itinerary", wa_url, use_container_width=True)
-                    else:
-                        st.warning(f"⚠️ No phone number saved for {current_gre}.")
                 else:
-                    st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
+                    st.warning(f"⚠️ No phone number saved for {current_gre}.")
+            else:
+                st.warning(f"⚠️ GRE '{current_gre}' not found in the GRE database.")
 
         st.divider()
         col_r1, col_r2 = st.columns([1, 1])
