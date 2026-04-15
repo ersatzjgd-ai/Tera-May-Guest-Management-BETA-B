@@ -14,7 +14,9 @@ def main():
     auth.check_login_state()
 
     st.sidebar.title("🛂 Event Control")
-    mode = st.sidebar.radio("Navigate to:", ["Public Search", "Staff Portal (GRE)", "Admin Portal"])
+    
+    # BUG FIX: Added key="main_nav" so Streamlit remembers your page across reruns
+    mode = st.sidebar.radio("Navigate to:", ["Public Search", "Staff Portal (GRE)", "Admin Portal"], key="main_nav")
 
     # --- 2. SIDEBAR USER PROFILE & LOGOUT ---
     if st.session_state.logged_in:
