@@ -1,9 +1,10 @@
 import streamlit as st
 from sqlalchemy import text
+import os
 
-# --- INITIALIZE BUILT-IN SQL CONNECTION ---
-conn = st.connection("postgresql", type="sql")
-
+# Fetch the URL from Railway's environment variables
+db_url = os.environ.get("DATABASE_URL")
+conn = st.connection("postgresql", type="sql", url=db_url)
 def init_db():
     """Ensure tables exist in Supabase and update them if needed"""
     with conn.session as s:
