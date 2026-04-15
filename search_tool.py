@@ -122,8 +122,9 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
         raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
-
-    st.markdown("## **🔍 Guest Management System**")
+   
+    st.title("## **Guest Management System**")
+    st.markdown("## ****")
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
     available_cats = sorted(list(set([str(x) for x in raw_df['category'].dropna() if str(x).strip()])))
