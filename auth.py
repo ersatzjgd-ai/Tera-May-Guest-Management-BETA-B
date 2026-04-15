@@ -1,6 +1,7 @@
 import streamlit as st
 import extra_streamlit_components as stx
 import datetime
+import time
 from database import conn
 
 # Initialize the Cookie Manager
@@ -32,6 +33,7 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.user = None
     cookie_manager.delete("admin_session")
+    time.sleep(0.3) # Added small delay to ensure cookie deletion registers
     st.rerun()
 
 def render_login():
@@ -42,13 +44,12 @@ def render_login():
         background-color: #ffffff !important;
         padding: 40px 35px !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04) !important;
-        border: 1px solid #e2e8f0 !important;
-        margin-top: 8vh !important;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06) !important;
+        border: 1px solid #f1f5f9 !important;
     }
     .enterprise-title {
-        font-size: 20px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
         color: #0f172a;
         margin-bottom: 24px;
         text-align: center;
@@ -78,8 +79,9 @@ def render_login():
                         if keep_logged_in:
                             expiry = datetime.datetime.now() + datetime.timedelta(days=30)
                             cookie_manager.set("admin_session", u, expires_at=expiry)
+                        
+                        # BUG FIX: Pause Python for half a second so the browser has time to save the cookie
+                        time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("Invalid credentials.")
-                else:
-                    st.warning("Please provide credentials.")
+                        st.error("Invalid credentials")
