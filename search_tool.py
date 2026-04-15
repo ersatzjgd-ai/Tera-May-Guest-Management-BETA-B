@@ -45,7 +45,8 @@ def alerts_overview_dialog(alerts_df):
         # Sort by Guest Name for easy finding
         valid_indiv = valid_indiv.sort_values('Guest')
 
-        for _, row in valid_indiv.iterrows():
+        # Changed to capture the index (idx) to use as a unique key
+        for idx, row in valid_indiv.iterrows():
             with st.container(border=True):
                 c1, c2 = st.columns([3, 1])
                 with c1:
@@ -69,7 +70,8 @@ def alerts_overview_dialog(alerts_df):
                         wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(indiv_msg)}"
                         st.link_button("💬 Send Alert on Whatsapp", wa_url, use_container_width=True)
                     else:
-                        st.button("🚫 No Phone", disabled=True, use_container_width=True)
+                        # BUG FIX: Added a unique key to prevent Duplicate Element ID errors
+                        st.button("🚫 No Phone", disabled=True, use_container_width=True, key=f"no_phone_{idx}")
 
     with tab_group:
         st.markdown("##### Notify GREs of all their assigned alerts")
@@ -122,7 +124,7 @@ def search_results_fragment():
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
         raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
         raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
-   
+    
     st.title("🧐Guest Management System")
 
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
