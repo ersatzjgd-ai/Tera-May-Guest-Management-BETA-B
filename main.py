@@ -14,7 +14,7 @@ def main():
     auth.check_login_state()
 
     st.sidebar.title("🛂 Event Control")
-    mode = st.sidebar.radio("Navigate to:", ["Public Search", "GRE Portal", "Admin Portal"])
+    mode = st.sidebar.radio("Navigate to:", ["Public Search", "Staff Portal (GRE)", "Admin Portal"])
 
     # --- 2. SIDEBAR USER PROFILE & LOGOUT ---
     if st.session_state.logged_in:
@@ -31,7 +31,7 @@ def main():
             df = conn.query("SELECT name, arrival_time, departure_time, housing FROM guests WHERE name ILIKE :n", params={"n": f"%{search}%"}, ttl=0)
             st.dataframe(df, use_container_width=True)
 
-    elif mode == "GRE Portal)":
+    elif mode == "Staff Portal (GRE)":
         st.title("🛎️ GRE Portal")
         
         # Simple name-based login
@@ -64,18 +64,13 @@ def main():
                             ddp_dialog(row.to_dict())
 
     elif mode == "Admin Portal":
-        # If not logged in, show the enterprise UI. Otherwise, show the dashboard!
+        # If not logged in, show the new enterprise UI. Otherwise, show the dashboard!
         if not st.session_state.logged_in:
             auth.render_login()
         else:
-            st.title("🛡️ Command Center")
-            
-            # Show the main Search/Grid Tool FIRST (Restored original order)
             search_results_fragment()
-            
             st.divider()
-            
-            # Show Admin Tools (CSV Import, Add GRE) BELOW the search tool
             admin_tools_fragment()
 
-main()
+if __name__ == "__main__":
+    main()
