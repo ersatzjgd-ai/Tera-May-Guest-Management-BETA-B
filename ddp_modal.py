@@ -247,11 +247,13 @@ def mobile_ddp_dialog(guest_data_input):
 
         st.markdown("### 🏨 Housing")
         st.text_input("Housing / Room", value=guest_data.get('housing', 'TBD'), key=f"m_hou_{gid}", on_change=db_update, args=("housing", f"m_hou_{gid}", gid))
+        st.number_input("Accompanying Pax", min_value=0, value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0, key=f"m_pax_{gid}", on_change=db_update, args=("accompanying_persons", f"m_pax_{gid}", gid))
 
         st.markdown("### 🪪 Profile Info")
-        st.text_input("Category", value=guest_data.get('category', ''), key=f"m_cat_{gid}", on_change=db_update, args=("category", f"m_cat_{gid}", gid))
-        st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if guest_data.get('speaker_category') == "Speaker" else 1, key=f"m_spk_{gid}", on_change=db_update, args=("speaker_category", f"m_spk_{gid}", gid))
-        st.number_input("Accompanying Pax", min_value=0, value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0, key=f"m_pax_{gid}", on_change=db_update, args=("accompanying_persons", f"m_pax_{gid}", gid))
+        cat_display = guest_data.get('category', 'Unassigned')
+        spk_display = guest_data.get('speaker_category', 'Non-Speaker')
+        if not spk_display: spk_display = "Non-Speaker"
+        st.info(f"**Category:** {cat_display}\n\n**Speaker Status:** {spk_display}")
 
     with t_status:
         st.markdown("### 🛎️ Ground Toggles")
@@ -263,19 +265,27 @@ def mobile_ddp_dialog(guest_data_input):
         st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"m_gift_{gid}", on_change=db_update, args=("gift_type", f"m_gift_{gid}", gid))
         
         st.markdown("### 📞 Comms & Assignment")
-        st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"m_poc_{gid}", on_change=db_update, args=("poc", f"m_poc_{gid}", gid))
+        poc_name = guest_data.get('poc', 'Unassigned')
+        if not poc_name or str(poc_name).strip() == "":
+            poc_name = "Unassigned"
         
-        gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
-        avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
-        current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
-        if current_gre not in avail_gres: avail_gres.append(current_gre)
+        st.markdown(f"**POC Name:** {poc_name}")
         
-        st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre), key=f"m_gre_{gid}", on_change=update_gre_cb, args=(f"m_gre_{gid}", gid))
+        if poc_name != 'Unassigned':
+            poc_query = conn.query("SELECT poc_phone FROM pocs WHERE poc_name = :n", params={"n": poc_name}, ttl=0)
+            if not poc_query.empty:
+                poc_phone = str(poc_query.iloc[0]['poc_phone']).strip()
+                if poc_phone and poc_phone.lower() not in ["none", "nan", ""]:
+                    st.markdown(f"📞 **Call POC:** [{poc_phone}](tel:{poc_phone})")
+            else:
+                st.caption(f"No phone number saved for {poc_name}.")
 
     with t_notes:
         st.markdown("### 📝 Primary Remarks")
-        st.text_area("Main instructions or alerts for the team.", value=clean_remarks, key=f"m_rem_{gid}", on_change=db_update, args=("remarks", f"m_rem_{gid}", gid), height=120)
-        st.checkbox("📌 Pin to Profile Header", value=is_pinned, key=f"m_pin_{gid}", on_change=toggle_pin_cb, args=(f"m_pin_{gid}", gid))
+        if clean_remarks.strip():
+            st.info(clean_remarks)
+        else:
+            st.caption("No primary remarks from Admin.")
         
         st.markdown("### 💬 Audit Log & Updates")
         notes_df = conn.query("SELECT admin_name, note_text, timestamp FROM guest_notes WHERE guest_id = :gid ORDER BY timestamp ASC", params={"gid": gid}, ttl=0)
@@ -287,6 +297,7 @@ def mobile_ddp_dialog(guest_data_input):
                     st.markdown(f"<span style='font-size: 13px;'>**{row['admin_name']}** <span style='color: #888;'>({dt_str})</span><br>{row['note_text']}</span><hr style='margin: 6px 0; border-color: #eee;'>", unsafe_allow_html=True)
         
         # Use the currently assigned GRE's name as the author for new notes added via the mobile portal
+        current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
         author_name = current_gre if current_gre != "-- Unassigned --" else "GRE Staff"
         st.text_input("Add quick update to log...", key=f"m_new_note_{gid}", on_change=add_guest_note_cb, args=(f"m_new_note_{gid}", gid, author_name))
 
