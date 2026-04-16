@@ -2,7 +2,7 @@ import streamlit as st
 from database import conn, init_db
 from search_tool import search_results_fragment
 from admin_tools import admin_tools_fragment
-from ddp_modal import ddp_dialog
+from ddp_modal import ddp_dialog, mobile_ddp_dialog
 import auth
 
 def main():
@@ -63,7 +63,7 @@ def main():
                             
                         # Restricted access: GRE can only open the DDP for their specific assigned guest
                         if st.button(f"Open Details for {row['name']}", key=f"gre_ddp_{row['id']}", use_container_width=True):
-                            ddp_dialog(row.to_dict())
+                            mobile_ddp_dialog(row.to_dict())
 
     elif mode == "Admin Portal":
         # If not logged in, show the new enterprise UI. Otherwise, show the dashboard!
