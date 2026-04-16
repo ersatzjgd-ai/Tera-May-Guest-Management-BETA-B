@@ -168,6 +168,129 @@ def ddp_dialog(guest_data_input):
             current_admin = st.session_state.get('user', 'System')
             st.text_input("Add quick update to log...", key=f"new_note_{gid}", on_change=add_guest_note_cb, args=(f"new_note_{gid}", gid, current_admin))
 
+@st.dialog("📱 Mobile DDP", width="large")
+def mobile_ddp_dialog(guest_data_input):
+    gid = guest_data_input['id']
+    
+    try:
+        fresh_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": gid}, ttl=0)
+        guest_data = fresh_df.iloc[0].to_dict() if not fresh_df.empty else guest_data_input
+    except:
+        guest_data = guest_data_input
+
+    name = guest_data.get('name', 'Unknown Guest')
+    cat = guest_data.get('category', 'Unassigned')
+    speaker = guest_data.get('speaker_category', '')
+    pax = guest_data.get('accompanying_persons', 0)
+    pax_val = int(pax) if pd.notna(pax) and str(pax).isdigit() else (pax if pd.notna(pax) else 0)
+
+    badges = [f'<span class="ddp-badge">🏷️ {cat}</span>']
+    if speaker == 'Speaker': badges.append('<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>')
+    badges.append(f'<span class="ddp-badge">👥 +{pax_val} Accompanying</span>')
+    badges_html = "".join(badges)
+
+    is_pinned = bool(guest_data.get('remarks_pinned', 0))
+    raw_remarks = guest_data.get('remarks', '')
+    clean_remarks = '' if pd.isna(raw_remarks) or raw_remarks is None else str(raw_remarks)
+    
+    pinned_html = ""
+    if is_pinned and clean_remarks.strip():
+        html_remarks = clean_remarks.replace('\n', '<br>')
+        pinned_html = f"<div style='background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 12px; margin-top: 15px; border-radius: 4px; color: #991b1b; font-size: 14px;'><strong>📌 Pinned Note:</strong><br>{html_remarks}</div>"
+
+    # Header section remains identical for consistency
+    st.markdown(f"""
+    <style>
+    .ddp-header {{ background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 6px solid #0068c9; }}
+    .ddp-title {{ font-size: 26px; font-weight: 800; margin-bottom: 8px; color: #1f2937; }}
+    .ddp-badge {{ background-color: #e5e7eb; padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; margin-right: 8px; color: #374151; display: inline-block; }}
+    .ddp-badge-speaker {{ background-color: #fef08a; color: #854d0e; }}
+    </style>
+    <div class="ddp-header">
+        <div class="ddp-title">{name}</div>
+        <div class="ddp-badges-row">{badges_html}</div>
+        {pinned_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.caption("✨ *Edits save automatically.*")
+
+    # Mobile Layout: Strict vertical flow within tabs to avoid side-scrolling or squished inputs
+    t_logistics, t_status, t_notes = st.tabs(["✈️ Logistics", "🛎️ Status", "📝 Notes"])
+
+    with t_logistics:
+        st.markdown("### ✈️ Arrival Details")
+        arr_val = guest_data.get('arrival_time')
+        if pd.isna(arr_val) or arr_val is None or str(arr_val).strip() in ["", "None", "TBD", "nan", "NaT"]:
+            st.warning("⚠️ Not Assigned")
+            c_arr1, c_arr2 = st.columns(2)
+            c_arr1.date_input("Date", value=None, key=f"m_arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"m_arr_d_{gid}", f"m_arr_t_{gid}", gid))
+            c_arr2.time_input("Time", value=None, key=f"m_arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"m_arr_d_{gid}", f"m_arr_t_{gid}", gid))
+        else:
+            arr_d, arr_t = parse_dt(arr_val)
+            c_arr1, c_arr2 = st.columns(2)
+            c_arr1.date_input("Date", value=arr_d, format="DD/MM/YYYY", key=f"m_arr_d_{gid}", on_change=db_update_datetime, args=("arrival_time", f"m_arr_d_{gid}", f"m_arr_t_{gid}", gid))
+            c_arr2.time_input("Time", value=arr_t, key=f"m_arr_t_{gid}", on_change=db_update_datetime, args=("arrival_time", f"m_arr_d_{gid}", f"m_arr_t_{gid}", gid))
+
+        st.markdown("### 🛫 Departure Details")
+        dep_val = guest_data.get('departure_time')
+        if pd.isna(dep_val) or dep_val is None or str(dep_val).strip() in ["", "None", "TBD", "nan", "NaT"]:
+            st.warning("⚠️ Not Assigned")
+            c_dep1, c_dep2 = st.columns(2)
+            c_dep1.date_input("Date", value=None, key=f"m_dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"m_dep_d_{gid}", f"m_dep_t_{gid}", gid))
+            c_dep2.time_input("Time", value=None, key=f"m_dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"m_dep_d_{gid}", f"m_dep_t_{gid}", gid))
+        else:
+            dep_d, dep_t = parse_dt(dep_val)
+            c_dep1, c_dep2 = st.columns(2)
+            c_dep1.date_input("Date", value=dep_d, format="DD/MM/YYYY", key=f"m_dep_d_{gid}", on_change=db_update_datetime, args=("departure_time", f"m_dep_d_{gid}", f"m_dep_t_{gid}", gid))
+            c_dep2.time_input("Time", value=dep_t, key=f"m_dep_t_{gid}", on_change=db_update_datetime, args=("departure_time", f"m_dep_d_{gid}", f"m_dep_t_{gid}", gid))
+
+        st.markdown("### 🏨 Housing")
+        st.text_input("Housing / Room", value=guest_data.get('housing', 'TBD'), key=f"m_hou_{gid}", on_change=db_update, args=("housing", f"m_hou_{gid}", gid))
+
+        st.markdown("### 🪪 Profile Info")
+        st.text_input("Category", value=guest_data.get('category', ''), key=f"m_cat_{gid}", on_change=db_update, args=("category", f"m_cat_{gid}", gid))
+        st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if guest_data.get('speaker_category') == "Speaker" else 1, key=f"m_spk_{gid}", on_change=db_update, args=("speaker_category", f"m_spk_{gid}", gid))
+        st.number_input("Accompanying Pax", min_value=0, value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0, key=f"m_pax_{gid}", on_change=db_update, args=("accompanying_persons", f"m_pax_{gid}", gid))
+
+    with t_status:
+        st.markdown("### 🛎️ Ground Toggles")
+        st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"m_rm_{gid}", on_change=toggle_room_cb, args=(f"m_rm_{gid}", gid))
+        st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"m_pk_{gid}", on_change=toggle_pk_cb, args=(f"m_pk_{gid}", gid))
+        st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"m_ash_{gid}", on_change=toggle_ashram_cb, args=(f"m_ash_{gid}", gid))
+
+        st.markdown("### 🎁 Deliverables")
+        st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"m_gift_{gid}", on_change=db_update, args=("gift_type", f"m_gift_{gid}", gid))
+        
+        st.markdown("### 📞 Comms & Assignment")
+        st.text_input("POC Name", value=guest_data.get('poc', ''), key=f"m_poc_{gid}", on_change=db_update, args=("poc", f"m_poc_{gid}", gid))
+        
+        gre_df = conn.query("SELECT gre_name FROM gres", ttl=0)
+        avail_gres = ["-- Unassigned --"] + gre_df['gre_name'].tolist() if not gre_df.empty else ["-- Unassigned --"]
+        current_gre = guest_data.get('assigned_gre') if pd.notna(guest_data.get('assigned_gre')) and str(guest_data.get('assigned_gre')).strip() not in ["", "None"] else "-- Unassigned --"
+        if current_gre not in avail_gres: avail_gres.append(current_gre)
+        
+        st.selectbox("Assigned GRE", avail_gres, index=avail_gres.index(current_gre), key=f"m_gre_{gid}", on_change=update_gre_cb, args=(f"m_gre_{gid}", gid))
+
+    with t_notes:
+        st.markdown("### 📝 Primary Remarks")
+        st.text_area("Main instructions or alerts for the team.", value=clean_remarks, key=f"m_rem_{gid}", on_change=db_update, args=("remarks", f"m_rem_{gid}", gid), height=120)
+        st.checkbox("📌 Pin to Profile Header", value=is_pinned, key=f"m_pin_{gid}", on_change=toggle_pin_cb, args=(f"m_pin_{gid}", gid))
+        
+        st.markdown("### 💬 Audit Log & Updates")
+        notes_df = conn.query("SELECT admin_name, note_text, timestamp FROM guest_notes WHERE guest_id = :gid ORDER BY timestamp ASC", params={"gid": gid}, ttl=0)
+        with st.container(height=200):
+            if notes_df.empty: st.caption("No timeline updates yet.")
+            else:
+                for _, row in notes_df.iterrows():
+                    dt_str = row['timestamp'].strftime('%d %b, %H:%M') if pd.notna(row['timestamp']) else ''
+                    st.markdown(f"<span style='font-size: 13px;'>**{row['admin_name']}** <span style='color: #888;'>({dt_str})</span><br>{row['note_text']}</span><hr style='margin: 6px 0; border-color: #eee;'>", unsafe_allow_html=True)
+        
+        # Use the currently assigned GRE's name as the author for new notes added via the mobile portal
+        author_name = current_gre if current_gre != "-- Unassigned --" else "GRE Staff"
+        st.text_input("Add quick update to log...", key=f"m_new_note_{gid}", on_change=add_guest_note_cb, args=(f"m_new_note_{gid}", gid, author_name))
+
+
 @st.dialog("🛠️ Batch Actions", width="medium")
 def batch_actions_dialog(selected_ids):
     st.write(f"**Applying changes to {len(selected_ids)} selected guests.**")
