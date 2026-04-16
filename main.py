@@ -40,8 +40,8 @@ def main():
         gre_name = st.text_input("Enter your full name to view your assigned guests")
         
         if gre_name:
-            # Query guests matching the assigned GRE exactly by name
-            df = conn.query("SELECT * FROM guests WHERE assigned_gre ILIKE :g", params={"g": gre_name.strip()}, ttl=0)
+            # Query guests matching the assigned GRE with a partial match (wildcards)
+            df = conn.query("SELECT * FROM guests WHERE assigned_gre ILIKE :g", params={"g": f"%{gre_name.strip()}%"}, ttl=0)
             
             if df.empty:
                 st.warning(f"No guests currently assigned to '{gre_name}'. Please verify the spelling or check with an admin.")
