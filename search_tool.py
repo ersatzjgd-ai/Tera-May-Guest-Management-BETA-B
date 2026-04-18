@@ -113,16 +113,20 @@ def alerts_overview_dialog(alerts_df):
 
 @st.fragment
 def search_results_fragment():
+    current_admin = st.session_state.get('user', '')
     raw_df = fetch_all_guests()
     expected = ['category', 'speaker_category', 'accompanying_persons', 'poc', 'assigned_gre', 
                 'arrival_time', 'departure_time', 'housing', 'gift_type', 'ashram_tour', 
-                'room_cleaned', 'airport_pickup_sent']
+                'room_cleaned', 'airport_pickup_sent', 'admin_owner']
     for col in expected:
         if col not in raw_df.columns: raw_df[col] = None 
     
     if not raw_df.empty:
         raw_df['arrival_dt'] = pd.to_datetime(raw_df['arrival_time'], format='%d/%m/%Y %H:%M', errors='coerce')
-        raw_df = raw_df.sort_values(by=['arrival_dt', 'name'], ascending=[True, True], na_position='last')
+        # Tag guests belonging to the logged in admin
+        raw_df['is_mine'] = raw_df['admin_owner'] == current_admin
+        # Sort so the admin's guests float to the top
+        raw_df = raw_df.sort_values(by=['is_mine', 'arrival_dt', 'name'], ascending=[False, True, True], na_position='last')
         raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
     
     st.title("🧐Guest Management System")
@@ -137,15 +141,19 @@ def search_results_fragment():
         with col_name: s_name = st.selectbox("**👤 Guest Name**", options=all_guests, index=None, placeholder="Type a name...", key="s_name_input")
         with col_poc: s_poc = st.multiselect("**📞 Filter by POC**", options=all_pocs, placeholder="Select POCs...", key="s_poc_input")
         
-        col_cat, col_date, col_unassigned = st.columns([3, 2, 2])
+        # Squeezed columns to add the "My Guests" filter
+        col_cat, col_date, col_unassigned, col_mine = st.columns([3, 2, 2, 2])
         with col_cat: s_cat = st.multiselect("**🏷️ Category**", options=available_cats, placeholder="Select categories...")
         with col_date: s_date = st.date_input("**📅 Arrival Date Range**", value=[])
         with col_unassigned:
             st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True)
             s_unassigned = st.checkbox("**🚨 Unassigned GRE**")
+        with col_mine:
+            st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True)
+            s_mine = st.checkbox("**👤 My Guests**")
 
     filtered_df = raw_df.copy()
-    filters_engaged = any([s_name, s_poc, s_cat, s_date, s_unassigned])
+    filters_engaged = any([s_name, s_poc, s_cat, s_date, s_unassigned, s_mine])
     
     if filters_engaged:
         if s_name: filtered_df = filtered_df[filtered_df['name'] == s_name]
@@ -154,6 +162,7 @@ def search_results_fragment():
         if len(s_date) == 2: filtered_df = filtered_df[(filtered_df['arrival_dt'].dt.date >= s_date[0]) & (filtered_df['arrival_dt'].dt.date <= s_date[1])]
         elif len(s_date) == 1: filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == s_date[0]]
         if s_unassigned: filtered_df = filtered_df[filtered_df['assigned_gre'].isna() | filtered_df['assigned_gre'].str.strip().isin(["", "-- Unassigned --", "None"])]
+        if s_mine: filtered_df = filtered_df[filtered_df['is_mine']]
     else:
         today = datetime.date.today()
         filtered_df = filtered_df[filtered_df['arrival_dt'].dt.date == today]
@@ -202,7 +211,10 @@ def search_results_fragment():
         display_df['assigned_gre'] = display_df['assigned_gre'].apply(lambda x: "🚨 Pending" if pd.isna(x) or str(x).strip() in ["", "-- Unassigned --", "None"] else x)
         
         if len(display_df) > 20:
-            ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']].copy()
+            ui_df = display_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons', 'is_mine']].copy()
+            # Highlight your guests in the dataframe view
+            ui_df['name'] = ui_df.apply(lambda r: f"⭐ {r['name']} (Your Guest)" if r['is_mine'] else r['name'], axis=1)
+            ui_df = ui_df[['name', 'arrival_time', 'poc', 'assigned_gre', 'accompanying_persons']]
             ui_df.columns = ['Guest', 'Arrival', 'POC', 'GRE', '+1s']
             col_table, col_actions = st.columns([12, 2])
             with col_table: event = st.dataframe(ui_df, use_container_width=True, hide_index=True, selection_mode="multi-row", on_select="rerun")
@@ -226,9 +238,15 @@ def search_results_fragment():
 
             for _, row in display_df.iterrows():
                 with st.container(border=True):
+                    # Inject the colored pill above the card if it belongs to the admin
+                    if row.get('is_mine', False):
+                        st.markdown("<span style='background-color: #d97706; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-bottom: 5px; display: inline-block;'>👤 Your Guest</span>", unsafe_allow_html=True)
+
                     c_name, c_arr, c_poc, c_acc, c_gre = st.columns([3, 2, 2, 1, 3])
                     with c_name:
-                        if st.button(f" {row['name']}", key=f"btn_name_{row['id']}", use_container_width=True): ddp_dialog(row.to_dict())
+                        # Append the star and text to the button if it belongs to the admin
+                        btn_text = f"⭐ {row['name']} (Your Guest)" if row.get('is_mine', False) else f" {row['name']}"
+                        if st.button(btn_text, key=f"btn_name_{row['id']}", use_container_width=True): ddp_dialog(row.to_dict())
                     with c_arr: st.write(f"Arrival {row['arrival_time']}")
                     with c_poc: st.write(f"POC: {row['poc']}")
                     with c_acc:
