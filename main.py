@@ -98,7 +98,7 @@ def main():
                 font-weight: 500;
                 font-size: 14px; /* Reduced to very small font size */
                 color: #d97706; /* Warm saffron/orange hue */
-                margin-top: 0px; /* Adjusted to prevent clipping on smaller fonts */
+                margin-top: -35px; /* Pulls the greeting up closer to the top */
                 margin-bottom: 10px;
                 line-height: 1.2;
             }
