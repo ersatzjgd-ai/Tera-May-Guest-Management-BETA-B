@@ -96,9 +96,9 @@ def main():
             @import url('https://fonts.googleapis.com/css2?family=Yatra+One&display=swap');
             .traditional-greeting {
                 font-family: 'Yatra One', system-ui;
-                font-size: 34px;
+                font-size: 14px; /* Reduced to very small font size */
                 color: #d97706; /* Warm saffron/orange hue */
-                margin-top: -15px;
+                margin-top: 0px; /* Adjusted to prevent clipping on smaller fonts */
                 margin-bottom: 10px;
                 line-height: 1.2;
             }
