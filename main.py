@@ -73,10 +73,42 @@ def main():
         else:
             current_admin = st.session_state.user
             
+            # Fetch admin gender to format the greeting
+            admin_data = conn.query("SELECT gender FROM admins WHERE username = :u", params={"u": current_admin}, ttl=0)
+            admin_gender = None
+            if not admin_data.empty:
+                admin_gender = admin_data.iloc[0]['gender']
+                
+            suffix = ""
+            if admin_gender:
+                gender_str = str(admin_gender).strip().upper()
+                if gender_str in ["M", "MALE"]:
+                    suffix = " Bhaiya"
+                elif gender_str in ["F", "FEMALE"]:
+                    suffix = " Didi"
+            
+            # Capitalize the username for a nicer display
+            display_name = str(current_admin).title()
+            
+            # Inject traditional font CSS
+            st.markdown("""
+            <style>
+            @import url('https://fonts.googleapis.com/css2?family=Yatra+One&display=swap');
+            .traditional-greeting {
+                font-family: 'Yatra One', system-ui;
+                font-size: 34px;
+                color: #d97706; /* Warm saffron/orange hue */
+                margin-top: -15px;
+                margin-bottom: 10px;
+                line-height: 1.2;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
             # --- NOTIFICATIONS & DASHBOARD HEADER ---
             col_hdr, col_notif = st.columns([9, 2])
             with col_hdr:
-                st.write("") # Just an empty write for vertical alignment
+                st.markdown(f'<div class="traditional-greeting">Jai Gurudev {display_name}{suffix} 🙏</div>', unsafe_allow_html=True)
             
             with col_notif:
                 st.write("") # Padding to push it down slightly
