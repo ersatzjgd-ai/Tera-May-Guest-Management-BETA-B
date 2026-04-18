@@ -1,4 +1,5 @@
 import streamlit as st
+from sqlalchemy import text
 from database import conn, init_db
 from search_tool import search_results_fragment
 from admin_tools import admin_tools_fragment
@@ -70,6 +71,43 @@ def main():
         if not st.session_state.logged_in:
             auth.render_login()
         else:
+            current_admin = st.session_state.user
+            
+            # --- NOTIFICATIONS & DASHBOARD HEADER ---
+            col_hdr, col_notif = st.columns([9, 2])
+            with col_hdr:
+                st.write("") # Just an empty write for vertical alignment
+            
+            with col_notif:
+                st.write("") # Padding to push it down slightly
+                # Fetch unread notifications for the logged-in admin
+                notifs_df = conn.query("SELECT * FROM notifications WHERE admin_owner = :admin AND is_read = FALSE ORDER BY timestamp DESC", params={"admin": current_admin}, ttl=0)
+                unread_count = len(notifs_df)
+                
+                with st.popover(f"🔔 {unread_count} Unread", use_container_width=True):
+                    if unread_count > 0:
+                        if st.button("✔️ Mark All as Read", use_container_width=True):
+                            with conn.session as s:
+                                s.execute(text("UPDATE notifications SET is_read = TRUE WHERE admin_owner = :admin"), {"admin": current_admin})
+                                s.commit()
+                            st.rerun()
+                        
+                        st.divider()
+                        
+                        for _, notif in notifs_df.iterrows():
+                            st.markdown(f"**{notif['subject']}**")
+                            st.caption(f"👤 **{notif['guest_name']}**<br>{notif['details']}", unsafe_allow_html=True)
+                            
+                            if st.button("View Guest DDP", key=f"btn_notif_{notif['id']}", use_container_width=True):
+                                # Fetch fresh guest data to pass to the DDP dialog
+                                g_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": notif['guest_id']}, ttl=0)
+                                if not g_df.empty:
+                                    ddp_dialog(g_df.iloc[0].to_dict())
+                                    
+                            st.markdown("<hr style='margin: 8px 0;'>", unsafe_allow_html=True)
+                    else:
+                        st.info("No new notifications.")
+
             search_results_fragment()
             st.divider()
             admin_tools_fragment()
