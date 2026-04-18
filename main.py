@@ -95,12 +95,13 @@ def main():
             <style>
             .traditional-greeting {
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                font-weight: 500;
-                font-size: 14px; /* Reduced to very small font size */
+                font-weight: 400; /* Reduced from 500 to normal to make it less bold */
+                font-size: 13px; /* Reduced slightly to make it less prominent */
                 color: #d97706; /* Warm saffron/orange hue */
                 margin-top: -35px; /* Pulls the greeting up closer to the top */
                 margin-bottom: 10px;
                 line-height: 1.2;
+                opacity: 0.85; /* Slight opacity drop for less prominence */
             }
             </style>
             """, unsafe_allow_html=True)
