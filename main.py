@@ -112,33 +112,39 @@ def main():
             
             with col_notif:
                 st.write("") # Padding to push it down slightly
-                # Fetch unread notifications for the logged-in admin
-                notifs_df = conn.query("SELECT * FROM notifications WHERE admin_owner = :admin AND is_read = FALSE ORDER BY timestamp DESC", params={"admin": current_admin}, ttl=0)
-                unread_count = len(notifs_df)
+                # Fetch up to 20 recent notifications (both read and unread)
+                notifs_df = conn.query("SELECT * FROM notifications WHERE admin_owner = :admin ORDER BY timestamp DESC LIMIT 20", params={"admin": current_admin}, ttl=0)
+                unread_count = len(notifs_df[notifs_df['is_read'] == False]) if not notifs_df.empty else 0
                 
                 with st.popover(f"🔔 {unread_count} Unread", use_container_width=True):
                     if unread_count > 0:
                         if st.button("✔️ Mark All as Read", use_container_width=True):
                             with conn.session as s:
-                                s.execute(text("UPDATE notifications SET is_read = TRUE WHERE admin_owner = :admin"), {"admin": current_admin})
+                                s.execute(text("UPDATE notifications SET is_read = TRUE WHERE admin_owner = :admin AND is_read = FALSE"), {"admin": current_admin})
                                 s.commit()
                             st.rerun()
-                        
                         st.divider()
                         
-                        for _, notif in notifs_df.iterrows():
-                            st.markdown(f"**{notif['subject']}**")
-                            st.caption(f"👤 **{notif['guest_name']}**<br>{notif['details']}", unsafe_allow_html=True)
-                            
-                            if st.button("View Guest DDP", key=f"btn_notif_{notif['id']}", use_container_width=True):
-                                # Fetch fresh guest data to pass to the DDP dialog
-                                g_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": notif['guest_id']}, ttl=0)
-                                if not g_df.empty:
-                                    ddp_dialog(g_df.iloc[0].to_dict())
-                                    
-                            st.markdown("<hr style='margin: 8px 0;'>", unsafe_allow_html=True)
+                    if notifs_df.empty:
+                        st.info("No notifications.")
                     else:
-                        st.info("No new notifications.")
+                        for _, notif in notifs_df.iterrows():
+                            if not notif['is_read']:
+                                # --- UNREAD FORMAT (Detailed) ---
+                                st.markdown(f"**{notif['subject']}**")
+                                st.caption(f"👤 **{notif['guest_name']}**<br>{notif['details']}", unsafe_allow_html=True)
+                                
+                                if st.button("View Guest DDP", key=f"btn_notif_{notif['id']}", use_container_width=True):
+                                    # Fetch fresh guest data to pass to the DDP dialog
+                                    g_df = conn.query("SELECT * FROM guests WHERE id = :id", params={"id": notif['guest_id']}, ttl=0)
+                                    if not g_df.empty:
+                                        ddp_dialog(g_df.iloc[0].to_dict())
+                                        
+                                st.markdown("<hr style='margin: 8px 0;'>", unsafe_allow_html=True)
+                            else:
+                                # --- READ FORMAT (Compact / Grayed Out) ---
+                                st.markdown(f"<div style='color: #888; font-size: 13px; margin-bottom: 4px;'>{notif['subject']} — <i>{notif['guest_name']}</i></div>", unsafe_allow_html=True)
+                                st.markdown("<hr style='margin: 4px 0; border-color: #eee;'>", unsafe_allow_html=True)
 
             search_results_fragment()
             st.divider()
