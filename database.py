@@ -8,7 +8,8 @@ conn = st.connection("postgresql", type="sql", url=db_url)
 def init_db():
     """Ensure tables exist in Supabase and update them if needed"""
     with conn.session as s:
-        s.execute(text('CREATE TABLE IF NOT EXISTS admins (username TEXT PRIMARY KEY, password TEXT);'))
+        # Added gender column to the admins table schema
+        s.execute(text('CREATE TABLE IF NOT EXISTS admins (username TEXT PRIMARY KEY, password TEXT, gender TEXT);'))
         s.execute(text('CREATE TABLE IF NOT EXISTS gres (gre_id SERIAL PRIMARY KEY, gre_name TEXT, gre_phone TEXT);'))
         # Add the new POCs table here:
         s.execute(text('CREATE TABLE IF NOT EXISTS pocs (poc_id SERIAL PRIMARY KEY, poc_name TEXT UNIQUE, poc_phone TEXT);'))
@@ -90,6 +91,14 @@ def init_db():
             s.commit()
         except Exception:
             # If already converted or syntax fails, silently rollback to prevent crashing
+            s.rollback()
+
+    # --- ADD GENDER TO EXISTING ADMINS TABLE SAFELY ---
+    with conn.session as s:
+        try:
+            s.execute(text("ALTER TABLE admins ADD COLUMN gender TEXT;"))
+            s.commit()
+        except Exception:
             s.rollback()
 
     # --- ISOLATED TRANSACTIONS WITH ROLLBACKS ---
