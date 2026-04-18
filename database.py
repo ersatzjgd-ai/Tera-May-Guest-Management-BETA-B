@@ -42,6 +42,20 @@ def init_db():
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         '''))
+
+        # --- NEW TABLE FOR ADMIN NOTIFICATIONS ---
+        s.execute(text('''
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                admin_owner TEXT NOT NULL,
+                guest_name TEXT,
+                guest_id INTEGER,
+                subject TEXT,
+                details TEXT,
+                is_read BOOLEAN DEFAULT FALSE,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        '''))
         s.commit() 
 
     # --- FORCE SPEAKER CATEGORY TO TEXT ---
