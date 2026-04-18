@@ -22,15 +22,29 @@ def admin_tools_fragment():
                     st.success(f"Added {gn}!")
 
         with t2:
-            st.info("📄 **CSV Required Columns:** `name`, `admin_username` (Optional: `poc`, `category`, `housing`, etc.)")
+            st.info("📄 **CSV Required Columns:** `name`, `admin_username` (Optional: `admin_gender`, `poc`, `category`, `housing`, etc.)")
             f = st.file_uploader("Upload CSV", type="csv", key="bulk_csv_uploader")
             if f and st.button("Run Import", type="primary", key="csv_import_btn"):
                 data = pd.read_csv(f)
                 data.columns = data.columns.str.lower().str.strip()
                 with conn.session as s:
                     for _, r in data.iterrows():
-                        g_name, a_user = str(r['name']).strip(), str(r['admin_username']).strip()
-                        s.execute(text("INSERT INTO admins (username, password) VALUES (:u, :p) ON CONFLICT DO NOTHING"), {"u": a_user, "p": "password123"})
+                        g_name = str(r['name']).strip()
+                        a_user = str(r['admin_username']).strip()
+                        
+                        # Extract gender safely. If it's empty/NaN, set to None so the DB handles it properly
+                        a_gender = r.get('admin_gender')
+                        if pd.isna(a_gender) or str(a_gender).strip() == "":
+                            a_gender = None
+                        else:
+                            a_gender = str(a_gender).strip()
+
+                        # Insert new admin, or update gender if the admin already exists
+                        s.execute(text("""
+                            INSERT INTO admins (username, password, gender) 
+                            VALUES (:u, :p, :g) 
+                            ON CONFLICT (username) DO UPDATE SET gender = EXCLUDED.gender
+                        """), {"u": a_user, "p": "password123", "g": a_gender})
                         
                         cat = str(r.get('category', '')).strip()
                         hou = str(r.get('housing', 'TBD')).strip()
