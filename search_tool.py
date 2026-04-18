@@ -129,7 +129,8 @@ def search_results_fragment():
         raw_df = raw_df.sort_values(by=['is_mine', 'arrival_dt', 'name'], ascending=[False, True, True], na_position='last')
         raw_df['category'] = raw_df['category'].apply(lambda x: str(x).strip().title() if pd.notna(x) and str(x).strip() else None)
     
-    st.title("🧐Guest Management System")
+    # Title colored orange using Streamlit's native Markdown color formatting
+    st.title("🧐 :orange[Guest Management System]")
 
     all_guests = sorted([str(x) for x in raw_df['name'].dropna().unique() if str(x).strip()])
     all_pocs = sorted([str(x) for x in raw_df['poc'].dropna().unique() if str(x).strip()])
