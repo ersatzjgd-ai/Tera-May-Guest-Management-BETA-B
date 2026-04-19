@@ -183,7 +183,11 @@ def main():
                                 st.markdown(f"<div style='color: #888; font-size: 13px; margin-bottom: 4px;'>{notif['subject']} — <i>{notif['guest_name']}</i></div>", unsafe_allow_html=True)
                                 st.markdown("<hr style='margin: 4px 0; border-color: #eee;'>", unsafe_allow_html=True)
 
-            # --- NEW: ADMIN NOTIFICATION SETTINGS ---
+            search_results_fragment()
+            st.divider()
+            admin_tools_fragment()
+
+            # --- NEW: ADMIN NOTIFICATION SETTINGS (MOVED TO BOTTOM) ---
             admin_info = conn.query("SELECT email, telegram_chat_id, notify_email, notify_telegram FROM admins WHERE username = :u", params={"u": current_admin}, ttl=0)
             with st.expander("⚙️ My Notification Settings"):
                 if not admin_info.empty:
@@ -214,10 +218,6 @@ def main():
                                 s.commit()
                             st.success("Settings saved successfully!")
                             st.rerun()
-
-            search_results_fragment()
-            st.divider()
-            admin_tools_fragment()
 
 if __name__ == "__main__":
     main()
