@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from sqlalchemy import text
 from database import conn, init_db
 from search_tool import search_results_fragment
@@ -48,7 +49,42 @@ def main():
                 st.warning(f"No guests currently assigned to '{gre_name}'. Please verify the spelling or check with an admin.")
             else:
                 st.success(f"Welcome {gre_name}! You have {len(df)} assigned guests.")
+
+                # --- NEW: GRE NOTIFICATION SETTINGS ---
+                gre_db_df = conn.query("SELECT * FROM gres WHERE gre_name ILIKE :g LIMIT 1", params={"g": f"%{gre_name.strip()}%"}, ttl=0)
+                if not gre_db_df.empty:
+                    gre_record = gre_db_df.iloc[0]
+                    with st.expander("⚙️ My Notification Settings"):
+                        with st.form(key=f"gre_settings_form_{gre_record['gre_id']}"):
+                            # Safely handle potential null values from the database
+                            curr_email = "" if pd.isna(gre_record.get('email')) else str(gre_record.get('email'))
+                            curr_tg = "" if pd.isna(gre_record.get('telegram_chat_id')) else str(gre_record.get('telegram_chat_id'))
+                            curr_ne = True if pd.isna(gre_record.get('notify_email')) else bool(gre_record.get('notify_email'))
+                            curr_nt = False if pd.isna(gre_record.get('notify_telegram')) else bool(gre_record.get('notify_telegram'))
+                            
+                            new_email = st.text_input("📧 Email Address", value=curr_email)
+                            st.caption("Tip: Use the email that's on your mobile phone")
+                            
+                            new_tg = st.text_input("✈️ Telegram Chat ID", value=curr_tg)
+                            st.caption("Don't know your ID? Message @YourEventBot on Telegram and say 'Start'!")
+                            
+                            c1, c2 = st.columns(2)
+                            with c1: opt_email = st.toggle("Receive Email Alerts", value=curr_ne)
+                            with c2: opt_tg = st.toggle("Receive Telegram Alerts", value=curr_nt)
+                            
+                            if st.form_submit_button("Save Preferences", use_container_width=True):
+                                with conn.session as s:
+                                    s.execute(text("""
+                                        UPDATE gres SET 
+                                        email = :e, telegram_chat_id = :t, notify_email = :ne, notify_telegram = :nt 
+                                        WHERE gre_id = :gid
+                                    """), {"e": new_email, "t": new_tg, "ne": opt_email, "nt": opt_tg, "gid": int(gre_record['gre_id'])})
+                                    s.commit()
+                                st.success("Settings saved successfully!")
+                                st.rerun()
                 
+                st.write("") # Quick spacing buffer before the guest cards
+
                 # Mobile-first vertical card layout for the on-ground staff
                 for _, row in df.iterrows():
                     with st.container(border=True):
@@ -146,6 +182,38 @@ def main():
                                 # --- READ FORMAT (Compact / Grayed Out) ---
                                 st.markdown(f"<div style='color: #888; font-size: 13px; margin-bottom: 4px;'>{notif['subject']} — <i>{notif['guest_name']}</i></div>", unsafe_allow_html=True)
                                 st.markdown("<hr style='margin: 4px 0; border-color: #eee;'>", unsafe_allow_html=True)
+
+            # --- NEW: ADMIN NOTIFICATION SETTINGS ---
+            admin_info = conn.query("SELECT email, telegram_chat_id, notify_email, notify_telegram FROM admins WHERE username = :u", params={"u": current_admin}, ttl=0)
+            with st.expander("⚙️ My Notification Settings"):
+                if not admin_info.empty:
+                    a_record = admin_info.iloc[0]
+                    with st.form(key="admin_settings_form"):
+                        curr_email = "" if pd.isna(a_record.get('email')) else str(a_record.get('email'))
+                        curr_tg = "" if pd.isna(a_record.get('telegram_chat_id')) else str(a_record.get('telegram_chat_id'))
+                        curr_ne = True if pd.isna(a_record.get('notify_email')) else bool(a_record.get('notify_email'))
+                        curr_nt = False if pd.isna(a_record.get('notify_telegram')) else bool(a_record.get('notify_telegram'))
+                        
+                        new_email = st.text_input("📧 Email Address", value=curr_email)
+                        st.caption("Tip: Use the email that's on your mobile phone")
+                        
+                        new_tg = st.text_input("✈️ Telegram Chat ID", value=curr_tg)
+                        st.caption("Don't know your ID? Message @YourEventBot on Telegram and say 'Start'!")
+                        
+                        c1, c2 = st.columns(2)
+                        with c1: opt_email = st.toggle("Receive Email Alerts", value=curr_ne)
+                        with c2: opt_tg = st.toggle("Receive Telegram Alerts", value=curr_nt)
+                        
+                        if st.form_submit_button("Save Preferences", use_container_width=True):
+                            with conn.session as s:
+                                s.execute(text("""
+                                    UPDATE admins SET 
+                                    email = :e, telegram_chat_id = :t, notify_email = :ne, notify_telegram = :nt 
+                                    WHERE username = :u
+                                """), {"e": new_email, "t": new_tg, "ne": opt_email, "nt": opt_tg, "u": current_admin})
+                                s.commit()
+                            st.success("Settings saved successfully!")
+                            st.rerun()
 
             search_results_fragment()
             st.divider()
