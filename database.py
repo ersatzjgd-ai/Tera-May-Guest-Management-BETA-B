@@ -5,6 +5,7 @@ import os
 # Fetch the URL from Railway's environment variables
 db_url = os.environ.get("DATABASE_URL")
 conn = st.connection("postgresql", type="sql", url=db_url)
+
 def init_db():
     """Ensure tables exist in Supabase and update them if needed"""
     with conn.session as s:
@@ -100,6 +101,36 @@ def init_db():
             s.commit()
         except Exception:
             s.rollback()
+
+    # --- ADD NOTIFICATION PREFS TO ADMINS TABLE SAFELY ---
+    admin_notify_cols = [
+        ("email", "TEXT"),
+        ("telegram_chat_id", "TEXT"),
+        ("notify_email", "BOOLEAN DEFAULT TRUE"),
+        ("notify_telegram", "BOOLEAN DEFAULT FALSE")
+    ]
+    for col_name, col_type in admin_notify_cols:
+        with conn.session as s:
+            try:
+                s.execute(text(f"ALTER TABLE admins ADD COLUMN {col_name} {col_type};"))
+                s.commit()
+            except Exception:
+                s.rollback()
+
+    # --- ADD NOTIFICATION PREFS TO GRES TABLE SAFELY ---
+    gre_notify_cols = [
+        ("email", "TEXT"),
+        ("telegram_chat_id", "TEXT"),
+        ("notify_email", "BOOLEAN DEFAULT TRUE"),
+        ("notify_telegram", "BOOLEAN DEFAULT FALSE")
+    ]
+    for col_name, col_type in gre_notify_cols:
+        with conn.session as s:
+            try:
+                s.execute(text(f"ALTER TABLE gres ADD COLUMN {col_name} {col_type};"))
+                s.commit()
+            except Exception:
+                s.rollback()
 
     # --- ISOLATED TRANSACTIONS WITH ROLLBACKS ---
     columns_to_add = [
