@@ -6,7 +6,7 @@ from sqlalchemy import text
 from database import conn
 from utils import parse_dt, format_for_wa
 from callbacks import (db_update, db_update_datetime, update_gre_cb, toggle_room_cb, 
-                       toggle_pk_cb, toggle_ashram_cb, toggle_pin_cb, add_guest_note_cb)
+                       toggle_pk_cb, toggle_ashram_cb, toggle_pin_cb, add_guest_note_cb, toggle_idc_cb)
 
 @st.dialog("DDP - Dignitary Details Page", width="large")
 def ddp_dialog(guest_data_input):
