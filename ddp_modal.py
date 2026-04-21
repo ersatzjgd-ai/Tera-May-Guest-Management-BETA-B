@@ -80,8 +80,7 @@ def ddp_dialog(guest_data_input):
             st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room_cb, args=(f"ddp_rm_{gid}", gid))
             st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk_cb, args=(f"ddp_pk_{gid}", gid))
             st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram_cb, args=(f"ddp_ash_{gid}", gid))
-            # New ID Card Toggle integrated cleanly using the generic db_update
-            st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"ddp_idc_{gid}", on_change=db_update, args=("id_card_issued", f"ddp_idc_{gid}", gid))
+            st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"ddp_idc_{gid}", on_change=toggle_idc_cb, args=(f"ddp_idc_{gid}", gid))
 
     with t_logistics:
         col_l1, col_l2 = st.columns([3, 2])
@@ -205,7 +204,7 @@ def mobile_ddp_dialog(guest_data_input):
     badges = []
     
     # Add Protocol Tier Badge
-    tier_icons = {1: "Tier 1", 2: "Tier 2", 3: "Tier 3"}
+    tier_icons = {1: "👑 Tier 1", 2: "🥈 Tier 2", 3: "🥉 Tier 3"}
     tier_style = "background-color: #fef08a; color: #854d0e; border: 1px solid #eab308;" if tier_val == 1 else ""
     badges.append(f'<span class="ddp-badge" style="{tier_style}">{tier_icons.get(tier_val, "Tier 3")}</span>')
 
@@ -285,8 +284,7 @@ def mobile_ddp_dialog(guest_data_input):
         st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"m_rm_{gid}", on_change=toggle_room_cb, args=(f"m_rm_{gid}", gid))
         st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"m_pk_{gid}", on_change=toggle_pk_cb, args=(f"m_pk_{gid}", gid))
         st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"m_ash_{gid}", on_change=toggle_ashram_cb, args=(f"m_ash_{gid}", gid))
-        # Added ID Card Toggle to Mobile View
-        st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"m_idc_{gid}", on_change=db_update, args=("id_card_issued", f"m_idc_{gid}", gid))
+        st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"m_idc_{gid}", on_change=toggle_idc_cb, args=(f"m_idc_{gid}", gid))
 
         st.markdown("### 🎁 Deliverables")
         st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"m_gift_{gid}", on_change=db_update, args=("gift_type", f"m_gift_{gid}", gid))
