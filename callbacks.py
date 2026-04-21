@@ -157,6 +157,14 @@ def toggle_ashram_cb(k, gid):
         _create_notification(s, gid, "Ashram Tour Updated", f"Set to {status}")
         s.commit()
 
+def toggle_idc_cb(k, gid):
+    val = int(st.session_state[k])
+    with conn.session as s:
+        s.execute(text("UPDATE guests SET id_card_issued = :i WHERE id = :id"), {"i": val, "id": gid})
+        status = "Issued" if val else "Pending"
+        _create_notification(s, gid, "ID Card Status Updated", f"Marked as {status}")
+        s.commit()
+
 def toggle_pin_cb(k, gid):
     val = int(st.session_state[k])
     with conn.session as s:
