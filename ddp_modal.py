@@ -23,8 +23,19 @@ def ddp_dialog(guest_data_input):
     speaker = guest_data.get('speaker_category', '')
     pax = guest_data.get('accompanying_persons', 0)
     pax_val = int(pax) if pd.notna(pax) and str(pax).isdigit() else (pax if pd.notna(pax) else 0)
+    
+    # Extract Protocol Tier safely
+    tier_raw = guest_data.get('protocol_tier', 3)
+    tier_val = int(tier_raw) if pd.notna(tier_raw) and str(tier_raw).isdigit() else 3
 
-    badges = [f'<span class="ddp-badge">🏷️ {cat}</span>']
+    badges = []
+    
+    # Add Protocol Tier Badge
+    tier_icons = {1: "👑 Tier 1", 2: "🥈 Tier 2", 3: "🥉 Tier 3"}
+    tier_style = "background-color: #fef08a; color: #854d0e; border: 1px solid #eab308;" if tier_val == 1 else ""
+    badges.append(f'<span class="ddp-badge" style="{tier_style}">{tier_icons.get(tier_val, "Tier 3")}</span>')
+    
+    badges.append(f'<span class="ddp-badge">🏷️ {cat}</span>')
     if speaker == 'Speaker': badges.append('<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>')
     badges.append(f'<span class="ddp-badge">👥 +{pax_val} Accompanying</span>')
     badges_html = "".join(badges)
@@ -59,6 +70,7 @@ def ddp_dialog(guest_data_input):
     with t_profile:
         col_p1, col_p2 = st.columns(2)
         with col_p1:
+            st.selectbox("Protocol Tier", [1, 2, 3], index=tier_val-1 if tier_val in [1,2,3] else 2, key=f"tier_{gid}", on_change=db_update, args=("protocol_tier", f"tier_{gid}", gid))
             st.text_input("Category", value=guest_data.get('category', ''), key=f"cat_{gid}", on_change=db_update, args=("category", f"cat_{gid}", gid))
             st.selectbox("Speaker Status", ["Speaker", "Non-Speaker"], index=0 if guest_data.get('speaker_category') == "Speaker" else 1, key=f"spk_{gid}", on_change=db_update, args=("speaker_category", f"spk_{gid}", gid))
             st.number_input("Accompanying Pax", min_value=0, value=int(guest_data.get('accompanying_persons', 0)) if pd.notna(guest_data.get('accompanying_persons')) else 0, key=f"pax_{gid}", on_change=db_update, args=("accompanying_persons", f"pax_{gid}", gid))
@@ -68,6 +80,8 @@ def ddp_dialog(guest_data_input):
             st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"ddp_rm_{gid}", on_change=toggle_room_cb, args=(f"ddp_rm_{gid}", gid))
             st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"ddp_pk_{gid}", on_change=toggle_pk_cb, args=(f"ddp_pk_{gid}", gid))
             st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"ddp_ash_{gid}", on_change=toggle_ashram_cb, args=(f"ddp_ash_{gid}", gid))
+            # New ID Card Toggle integrated cleanly using the generic db_update
+            st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"ddp_idc_{gid}", on_change=db_update, args=("id_card_issued", f"ddp_idc_{gid}", gid))
 
     with t_logistics:
         col_l1, col_l2 = st.columns([3, 2])
@@ -184,7 +198,18 @@ def mobile_ddp_dialog(guest_data_input):
     pax = guest_data.get('accompanying_persons', 0)
     pax_val = int(pax) if pd.notna(pax) and str(pax).isdigit() else (pax if pd.notna(pax) else 0)
 
-    badges = [f'<span class="ddp-badge">🏷️ {cat}</span>']
+    # Extract Protocol Tier safely
+    tier_raw = guest_data.get('protocol_tier', 3)
+    tier_val = int(tier_raw) if pd.notna(tier_raw) and str(tier_raw).isdigit() else 3
+
+    badges = []
+    
+    # Add Protocol Tier Badge
+    tier_icons = {1: "Tier 1", 2: "Tier 2", 3: "Tier 3"}
+    tier_style = "background-color: #fef08a; color: #854d0e; border: 1px solid #eab308;" if tier_val == 1 else ""
+    badges.append(f'<span class="ddp-badge" style="{tier_style}">{tier_icons.get(tier_val, "Tier 3")}</span>')
+
+    badges.append(f'<span class="ddp-badge">🏷️ {cat}</span>')
     if speaker == 'Speaker': badges.append('<span class="ddp-badge ddp-badge-speaker">🎙️ Speaker</span>')
     badges.append(f'<span class="ddp-badge">👥 +{pax_val} Accompanying</span>')
     badges_html = "".join(badges)
@@ -253,13 +278,15 @@ def mobile_ddp_dialog(guest_data_input):
         cat_display = guest_data.get('category', 'Unassigned')
         spk_display = guest_data.get('speaker_category', 'Non-Speaker')
         if not spk_display: spk_display = "Non-Speaker"
-        st.info(f"**Category:** {cat_display}\n\n**Speaker Status:** {spk_display}")
+        st.info(f"**Protocol Tier:** {tier_val}\n\n**Category:** {cat_display}\n\n**Speaker Status:** {spk_display}")
 
     with t_status:
         st.markdown("### 🛎️ Ground Toggles")
         st.toggle("Room Cleaned", value=bool(guest_data.get('room_cleaned', 0)), key=f"m_rm_{gid}", on_change=toggle_room_cb, args=(f"m_rm_{gid}", gid))
         st.toggle("Pickup Sent", value=bool(guest_data.get('airport_pickup_sent', 0)), key=f"m_pk_{gid}", on_change=toggle_pk_cb, args=(f"m_pk_{gid}", gid))
         st.toggle("Ashram Tour", value=bool(guest_data.get('ashram_tour', 0)), key=f"m_ash_{gid}", on_change=toggle_ashram_cb, args=(f"m_ash_{gid}", gid))
+        # Added ID Card Toggle to Mobile View
+        st.toggle("ID Card Issued", value=bool(guest_data.get('id_card_issued', 0)), key=f"m_idc_{gid}", on_change=db_update, args=("id_card_issued", f"m_idc_{gid}", gid))
 
         st.markdown("### 🎁 Deliverables")
         st.text_input("GIFT Type", value=guest_data.get('gift_type', 'Pending'), key=f"m_gift_{gid}", on_change=db_update, args=("gift_type", f"m_gift_{gid}", gid))
